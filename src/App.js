@@ -259,6 +259,7 @@ function App() {
     }
   });
   const [strategyBuilderOpen, setStrategyBuilderOpen] = useState(false);
+  const [editingStrategyId, setEditingStrategyId] = useState(null);
   const [strategyForm, setStrategyForm] = useState({
     name: '',
     itemInput: '',
@@ -367,27 +368,88 @@ function App() {
     }));
   };
 
-  const resetStrategyForm = () =>
+  const resetStrategyForm = () => {
     setStrategyForm({
       name: '',
       itemInput: '',
       items: []
     });
+  };
+
+  const openNewStrategyBuilder = () => {
+    setEditingStrategyId(null);
+    resetStrategyForm();
+    setStrategyBuilderOpen(true);
+  };
+
+  const closeStrategyBuilder = () => {
+    setStrategyBuilderOpen(false);
+    setEditingStrategyId(null);
+    resetStrategyForm();
+  };
+
+  const handleStrategyBuilderToggle = () => {
+    if (strategyBuilderOpen) {
+      closeStrategyBuilder();
+    } else {
+      openNewStrategyBuilder();
+    }
+  };
 
   const handleStrategySave = () => {
     const name = strategyForm.name.trim();
     if (!name || strategyForm.items.length === 0) return;
-    const newStrategy = {
-      id: Date.now(),
-      name,
-      items: strategyForm.items.map((item) => ({
+    const formattedItems = strategyForm.items.map((item) => ({
+      id: item.id,
+      label: item.label
+    }));
+
+    if (editingStrategyId) {
+      setStrategies((prev) =>
+        prev.map((strategy) =>
+          strategy.id === editingStrategyId ? { ...strategy, name, items: formattedItems } : strategy
+        )
+      );
+    } else {
+      const newStrategy = {
+        id: Date.now(),
+        name,
+        items: formattedItems
+      };
+      setStrategies((prev) => [...prev, newStrategy]);
+    }
+
+    closeStrategyBuilder();
+  };
+
+  const handleStrategyEdit = (strategyId) => {
+    const template = strategies.find((strategy) => strategy.id === strategyId);
+    if (!template) return;
+    setStrategyForm({
+      name: template.name,
+      itemInput: '',
+      items: template.items.map((item) => ({
         id: item.id,
         label: item.label
       }))
-    };
-    setStrategies((prev) => [...prev, newStrategy]);
-    setStrategyBuilderOpen(false);
-    resetStrategyForm();
+    });
+    setEditingStrategyId(strategyId);
+    setStrategyBuilderOpen(true);
+  };
+
+  const handleStrategyDelete = (strategyId) => {
+    if (!strategyId) return;
+    setStrategies((prev) => prev.filter((strategy) => strategy.id !== strategyId));
+    setDayNotes((prev) => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach((key) => {
+        if (updated[key]?.strategyId === strategyId) {
+          updated[key] = { ...updated[key], strategyId: null };
+        }
+      });
+      return updated;
+    });
+    closeStrategyBuilder();
   };
 
   const handleScreenshotUpload = (dateKey, files) => {
@@ -762,6 +824,7 @@ function App() {
     ? dayNotes[selectedDay] ?? createDefaultDayEntry()
     : null;
   const selectedDayChecklistInput = selectedDay ? checklistInputs[selectedDay] || '' : '';
+  const isEditingStrategy = Boolean(editingStrategyId);
 
   const handleMonthChange = (offset) => {
     setSelectedMonth((prev) => {
@@ -791,8 +854,9 @@ function App() {
     setSelectedMonth(target);
   };
 
-  const selectedDayLabel = selectedDay
-    ? new Date(selectedDay).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  const selectedDayDate = selectedDay ? parseISODate(selectedDay) : null;
+  const selectedDayLabel = selectedDayDate
+    ? selectedDayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
     : 'Journal Entry';
 
   const rangeMonthNext = new Date(rangeMonth.getFullYear(), rangeMonth.getMonth() + 1, 1);
@@ -1424,7 +1488,7 @@ function App() {
                             </select>
                           )}
                           <button
-                            onClick={() => setStrategyBuilderOpen((prev) => !prev)}
+                            onClick={handleStrategyBuilderToggle}
                             className="px-2 py-1 text-xs rounded-lg border border-purple-400 text-purple-200 hover:bg-purple-500/20 transition-colors"
                           >
                             {strategyBuilderOpen ? 'Close Builder' : 'New Strategy'}
@@ -1440,16 +1504,37 @@ function App() {
                                 strategies.find((strategy) => strategy.id === selectedDayEntry.strategyId)?.name
                               }
                             </span>
-                            <button
-                              onClick={() => handleStrategyApply(selectedDay, null)}
-                              className="text-red-300 hover:text-red-200"
-                            >
-                              Clear Strategy
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleStrategyEdit(selectedDayEntry.strategyId)}
+                                className="text-purple-300 hover:text-purple-200"
+                              >
+                                Edit Strategy
+                              </button>
+                              <button
+                                onClick={() => handleStrategyApply(selectedDay, null)}
+                                className="text-red-300 hover:text-red-200"
+                              >
+                                Clear Strategy
+                              </button>
+                            </div>
                           </div>
                         )}
                       {strategyBuilderOpen && (
                         <div className="bg-slate-900/70 border border-slate-700 rounded-lg p-3 mb-3 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs uppercase tracking-wide text-slate-400">
+                              {isEditingStrategy ? 'Edit strategy' : 'Create strategy'}
+                            </p>
+                            {isEditingStrategy && (
+                              <button
+                                onClick={() => handleStrategyDelete(editingStrategyId)}
+                                className="text-xs px-3 py-1 rounded-lg border border-red-400 text-red-200 hover:bg-red-500/20 transition-colors"
+                              >
+                                Delete Strategy
+                              </button>
+                            )}
+                          </div>
                           <div>
                             <label className="block text-xs uppercase tracking-wide text-slate-400 mb-1">
                               Strategy Name
@@ -1502,10 +1587,7 @@ function App() {
                           </div>
                           <div className="flex justify-end gap-2 text-xs">
                             <button
-                              onClick={() => {
-                                setStrategyBuilderOpen(false);
-                                resetStrategyForm();
-                              }}
+                              onClick={closeStrategyBuilder}
                               className="px-3 py-2 rounded-lg border border-slate-600 text-slate-300 hover:border-purple-400"
                             >
                               Cancel
@@ -1514,7 +1596,7 @@ function App() {
                               onClick={handleStrategySave}
                               className="px-3 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600"
                             >
-                              Save Strategy
+                              {isEditingStrategy ? 'Update Strategy' : 'Save Strategy'}
                             </button>
                           </div>
                         </div>
