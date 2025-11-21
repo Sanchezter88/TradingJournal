@@ -21,7 +21,11 @@ import {
   ArrowLeft,
   ArrowRight,
   DollarSign,
-  ChevronDown
+  ChevronDown,
+  CheckCircle,
+  Circle,
+  Image as ImageIcon,
+  Trash2
 } from 'lucide-react';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -235,10 +239,107 @@ function App() {
   );
   const quickRangePresets = useMemo(() => getQuickRanges(), []);
   const rangePickerRef = useRef(null);
+  const [dayNotes, setDayNotes] = useState(() => {
+    const saved = localStorage.getItem('tradingJournalDayNotes');
+    if (!saved) return {};
+    try {
+      return JSON.parse(saved);
+    } catch (error) {
+      return {};
+    }
+  });
+  const [checklistInputs, setChecklistInputs] = useState({});
 
   useEffect(() => {
     localStorage.setItem('tradingJournalTrades', JSON.stringify(trades));
   }, [trades]);
+
+  useEffect(() => {
+    localStorage.setItem('tradingJournalDayNotes', JSON.stringify(dayNotes));
+  }, [dayNotes]);
+
+  const createDefaultDayEntry = () => ({
+    notes: '',
+    checklist: [],
+    screenshots: []
+  });
+
+  const updateDayEntry = (dateKey, updater) => {
+    if (!dateKey) return;
+    setDayNotes((prev) => {
+      const current = prev[dateKey] ?? createDefaultDayEntry();
+      const updated = updater(current);
+      return { ...prev, [dateKey]: updated };
+    });
+  };
+
+  const handleNoteChange = (dateKey, value) => {
+    updateDayEntry(dateKey, (entry) => ({ ...entry, notes: value }));
+  };
+
+  const handleChecklistInputChange = (dateKey, value) => {
+    setChecklistInputs((prev) => ({ ...prev, [dateKey]: value }));
+  };
+
+  const handleAddChecklistItem = (dateKey) => {
+    const label = (checklistInputs[dateKey] || '').trim();
+    if (!label) return;
+    updateDayEntry(dateKey, (entry) => ({
+      ...entry,
+      checklist: [...entry.checklist, { id: Date.now(), label, checked: false }]
+    }));
+    setChecklistInputs((prev) => ({ ...prev, [dateKey]: '' }));
+  };
+
+  const handleChecklistToggle = (dateKey, itemId) => {
+    updateDayEntry(dateKey, (entry) => ({
+      ...entry,
+      checklist: entry.checklist.map((item) =>
+        item.id === itemId ? { ...item, checked: !item.checked } : item
+      )
+    }));
+  };
+
+  const handleChecklistRemove = (dateKey, itemId) => {
+    updateDayEntry(dateKey, (entry) => ({
+      ...entry,
+      checklist: entry.checklist.filter((item) => item.id !== itemId)
+    }));
+  };
+
+  const handleScreenshotUpload = (dateKey, files) => {
+    if (!files || files.length === 0) return;
+    const uploads = Array.from(files).map(
+      (file) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () =>
+            resolve({
+              id: `${Date.now()}-${file.name}`,
+              name: file.name,
+              dataUrl: reader.result
+            });
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        })
+    );
+
+    Promise.all(uploads)
+      .then((images) => {
+        updateDayEntry(dateKey, (entry) => ({
+          ...entry,
+          screenshots: [...entry.screenshots, ...images]
+        }));
+      })
+      .catch(() => {});
+  };
+
+  const handleScreenshotRemove = (dateKey, imageId) => {
+    updateDayEntry(dateKey, (entry) => ({
+      ...entry,
+      screenshots: entry.screenshots.filter((img) => img.id !== imageId)
+    }));
+  };
 
   useEffect(() => {
     setSelectedDay(null);
@@ -573,6 +674,11 @@ function App() {
     if (!selectedDay) return [];
     return tradesByDate[selectedDay]?.trades ?? [];
   }, [selectedDay, tradesByDate]);
+
+  const selectedDayEntry = selectedDay
+    ? dayNotes[selectedDay] ?? createDefaultDayEntry()
+    : createDefaultDayEntry();
+  const selectedDayChecklistInput = checklistInputs[selectedDay] || '';
 
   const handleMonthChange = (offset) => {
     setSelectedMonth((prev) => {
@@ -1167,30 +1273,154 @@ function App() {
             })}
           </div>
           <div className="mt-4 bg-slate-900/60 rounded-xl p-4 border border-slate-700">
-            <h4 className="text-lg font-semibold mb-2">{selectedDayLabel}</h4>
-            {selectedDayTrades.length === 0 ? (
-              <p className="text-slate-400 text-sm">No trades on this day.</p>
+            <h4 className="text-lg font-semibold mb-4">{selectedDayLabel}</h4>
+            {!selectedDay ? (
+              <p className="text-slate-400 text-sm">Select a day on the calendar to review notes and trades.</p>
             ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                {selectedDayTrades.map((trade) => (
-                  <div
-                    key={trade.id}
-                    className="flex flex-wrap items-center justify-between gap-2 bg-slate-800/60 rounded-lg px-3 py-2 text-sm"
-                  >
-                    <div className="flex flex-col">
-                      <span className="font-semibold">{trade.instrument}</span>
-                      <span className="text-slate-400 text-xs">
-                        {trade.time} · {trade.side.toUpperCase()} · {trade.result === 'win' ? 'Win' : 'Loss'}
-                      </span>
+              <div className="space-y-6">
+                <div>
+                  <h5 className="text-sm uppercase tracking-wide text-slate-400 mb-2">Trades</h5>
+                  {selectedDayTrades.length === 0 ? (
+                    <p className="text-slate-500 text-sm">No trades recorded for this date.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                      {selectedDayTrades.map((trade) => (
+                        <div
+                          key={trade.id}
+                          className="flex flex-wrap items-center justify-between gap-2 bg-slate-800/60 rounded-lg px-3 py-2 text-sm"
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-semibold">{trade.instrument}</span>
+                            <span className="text-slate-400 text-xs">
+                              {trade.time} · {trade.side.toUpperCase()} · {trade.result === 'win' ? 'Win' : 'Loss'}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <div className={`font-semibold ${trade.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {currencyFormatter.format(trade.profitLoss)}
+                            </div>
+                            <div className="text-xs text-slate-400">{trade.riskReward}R</div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-right">
-                      <div className={`font-semibold ${trade.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {currencyFormatter.format(trade.profitLoss)}
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                    <h5 className="text-sm uppercase tracking-wide text-slate-400 mb-2">Journal Notes</h5>
+                    <textarea
+                      value={selectedDayEntry.notes}
+                      onChange={(e) => handleNoteChange(selectedDay, e.target.value)}
+                      rows={5}
+                      className="w-full bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
+                      placeholder="Document market context, psychology, mistakes, lessons..."
+                    />
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm uppercase tracking-wide text-slate-400">Strategy Checklist</span>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={selectedDayChecklistInput}
+                            onChange={(e) => handleChecklistInputChange(selectedDay, e.target.value)}
+                            placeholder="Add checklist step"
+                            className="bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1 text-xs focus:outline-none focus:border-purple-400"
+                          />
+                          <button
+                            onClick={() => handleAddChecklistItem(selectedDay)}
+                            className="px-2 py-1 text-xs rounded-lg bg-purple-600/60 hover:bg-purple-600 transition-colors"
+                          >
+                            Add
+                          </button>
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-400">{trade.riskReward}R</div>
+                      {selectedDayEntry.checklist.length === 0 ? (
+                        <p className="text-slate-500 text-xs">Create steps you expect to see before entering trades.</p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {selectedDayEntry.checklist.map((item) => (
+                            <li
+                              key={item.id}
+                              className="flex items-center justify-between bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                            >
+                              <button
+                                onClick={() => handleChecklistToggle(selectedDay, item.id)}
+                                className="flex items-center gap-2"
+                              >
+                                {item.checked ? (
+                                  <CheckCircle className="w-5 h-5 text-emerald-400" />
+                                ) : (
+                                  <Circle className="w-5 h-5 text-slate-500" />
+                                )}
+                                <span className={item.checked ? 'line-through text-slate-400' : ''}>{item.label}</span>
+                              </button>
+                              <button
+                                onClick={() => handleChecklistRemove(selectedDay, item.id)}
+                                className="text-slate-500 hover:text-red-400 transition-colors"
+                                aria-label="Remove checklist item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   </div>
-                ))}
+                  <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm uppercase tracking-wide text-slate-400">Screenshots</span>
+                      <label className="inline-flex items-center gap-2 text-xs cursor-pointer text-purple-300 hover:text-purple-100">
+                        <ImageIcon className="w-4 h-4" />
+                        <span>Attach</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => {
+                            handleScreenshotUpload(selectedDay, e.target.files);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
+                    {selectedDayEntry.screenshots.length === 0 ? (
+                      <p className="text-slate-500 text-xs">Attach chart screenshots or markups for this session.</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        {selectedDayEntry.screenshots.map((shot) => (
+                          <div key={shot.id} className="relative group">
+                            <img
+                              src={shot.dataUrl}
+                              alt={shot.name}
+                              className="rounded-lg border border-slate-700 object-cover h-32 w-full"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                              <a
+                                href={shot.dataUrl}
+                                download={shot.name}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2 py-1 text-xs bg-slate-900/80 rounded-lg border border-slate-600"
+                              >
+                                View
+                              </a>
+                              <button
+                                onClick={() => handleScreenshotRemove(selectedDay, shot.id)}
+                                className="p-1 rounded-lg bg-red-500/80 text-white"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
