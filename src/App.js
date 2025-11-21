@@ -28,6 +28,15 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2
 });
 
+const formatDayPnL = (value) => {
+  const numeric = Number(value) || 0;
+  const absValue = Math.abs(numeric);
+  const compact =
+    absValue >= 1000 ? `${(absValue / 1000).toFixed(1).replace(/\.0$/, '')}k` : absValue.toFixed(0);
+  const sign = numeric >= 0 ? '+' : '-';
+  return `${sign}$${compact}`;
+};
+
 const periodOptions = [
   { value: 'mtd', label: 'Month to Date' },
   { value: '3m', label: 'Last 3 Months' },
@@ -67,6 +76,37 @@ const formatDateKey = (date) => {
 
 const monthLabel = (date) =>
   date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+const buildMonthOptions = (trades) => {
+  const now = new Date();
+  const nowStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  let earliestTradeMonth = null;
+
+  trades.forEach((trade) => {
+    const parsed = parseISODate(trade.date);
+    if (!parsed) return;
+    const tradeMonth = new Date(parsed.getFullYear(), parsed.getMonth(), 1);
+    if (!earliestTradeMonth || tradeMonth < earliestTradeMonth) {
+      earliestTradeMonth = tradeMonth;
+    }
+  });
+
+  const defaultStart = new Date(nowStart.getFullYear(), nowStart.getMonth() - 11, 1);
+  const startPoint =
+    earliestTradeMonth && earliestTradeMonth < defaultStart ? earliestTradeMonth : defaultStart;
+
+  const options = [];
+  const cursor = new Date(nowStart);
+  while (cursor >= startPoint) {
+    options.push({
+      key: `${cursor.getFullYear()}-${cursor.getMonth()}`,
+      label: monthLabel(cursor),
+      date: new Date(cursor)
+    });
+    cursor.setMonth(cursor.getMonth() - 1);
+  }
+  return options;
+};
 
 function App() {
   const [trades, setTrades] = useState(() => {
@@ -128,6 +168,9 @@ function App() {
       return;
     }
 
+    const signedProfitLoss =
+      formData.result === 'loss' ? -Math.abs(parsedProfitLoss) : Math.abs(parsedProfitLoss);
+
     const newTrade = {
       id: Date.now(),
       date: formData.date,
@@ -136,7 +179,7 @@ function App() {
       instrument: formData.instrument,
       result: formData.result,
       riskReward: parsedRiskReward,
-      profitLoss: parsedProfitLoss
+      profitLoss: signedProfitLoss
     };
 
     if (editingTrade) {
@@ -169,7 +212,10 @@ function App() {
       instrument: trade.instrument,
       result: trade.result,
       riskReward: trade.riskReward.toString(),
-      profitLoss: trade.profitLoss?.toString() ?? ''
+      profitLoss:
+        trade.profitLoss !== undefined && trade.profitLoss !== null
+          ? Math.abs(trade.profitLoss).toString()
+          : ''
     });
     setShowAddForm(true);
   };
@@ -365,33 +411,12 @@ function App() {
     return cells;
   }, [selectedMonth]);
 
-  const monthOptions = useMemo(() => {
-    const map = new Map();
-    trades.forEach((trade) => {
-      const date = parseISODate(trade.date);
-      if (!date) return;
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          label: monthLabel(new Date(date.getFullYear(), date.getMonth(), 1)),
-          date: new Date(date.getFullYear(), date.getMonth(), 1)
-        });
-      }
-    });
-
-    const now = new Date();
-    const currentKey = `${now.getFullYear()}-${now.getMonth()}`;
-    if (!map.has(currentKey)) {
-      map.set(currentKey, {
-        key: currentKey,
-        label: monthLabel(new Date(now.getFullYear(), now.getMonth(), 1)),
-        date: new Date(now.getFullYear(), now.getMonth(), 1)
-      });
-    }
-
-    return Array.from(map.values()).sort((a, b) => b.date - a.date);
-  }, [trades]);
+  const monthOptions = useMemo(() => buildMonthOptions(trades), [trades]);
+  const currentMonthStart = useMemo(() => {
+    const nowDate = new Date();
+    return new Date(nowDate.getFullYear(), nowDate.getMonth(), 1);
+  }, []);
+  const earliestAvailableMonth = monthOptions[monthOptions.length - 1]?.date ?? null;
 
   const selectedDayTrades = useMemo(() => {
     if (!selectedDay) return [];
@@ -399,12 +424,31 @@ function App() {
   }, [selectedDay, tradesByDate]);
 
   const handleMonthChange = (offset) => {
-    setSelectedMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
+    setSelectedMonth((prev) => {
+      const next = new Date(prev.getFullYear(), prev.getMonth() + offset, 1);
+      if (next > currentMonthStart) {
+        return prev;
+      }
+      if (earliestAvailableMonth && next < earliestAvailableMonth) {
+        return prev;
+      }
+      return next;
+    });
   };
 
   const handleMonthSelect = (value) => {
-    const [year, month] = value.split('-').map(Number);
-    setSelectedMonth(new Date(year, month, 1));
+    const [year, monthIndex] = value.split('-').map(Number);
+    if (Number.isNaN(year) || Number.isNaN(monthIndex)) return;
+    const target = new Date(year, monthIndex, 1);
+    if (target > currentMonthStart) {
+      setSelectedMonth(currentMonthStart);
+      return;
+    }
+    if (earliestAvailableMonth && target < earliestAvailableMonth) {
+      setSelectedMonth(earliestAvailableMonth);
+      return;
+    }
+    setSelectedMonth(target);
   };
 
   const selectedDayLabel = selectedDay
@@ -752,15 +796,15 @@ function App() {
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-7 gap-2 text-center text-xs text-slate-400 mb-2">
+          <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-slate-400 mb-2">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
               <div key={day}>{day}</div>
             ))}
           </div>
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1">
             {calendarCells.map((date, index) => {
               if (!date) {
-                return <div key={`empty-${index}`} className="aspect-square rounded-lg bg-slate-800/50" />;
+                return <div key={`empty-${index}`} className="h-16 rounded-lg bg-slate-800/50" />;
               }
 
               const dateKey = formatDateKey(date);
@@ -772,17 +816,31 @@ function App() {
                 <button
                   key={dateKey}
                   onClick={() => setSelectedDay(dateKey)}
-                  className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs transition-transform hover:scale-105 border ${
+                  title={
+                    hasTrades
+                      ? `${date.toLocaleDateString()} • ${dayData.wins}W/${dayData.losses}L • ${currencyFormatter.format(
+                          dayData.profitLoss
+                        )}`
+                      : `${date.toLocaleDateString()} • No trades`
+                  }
+                  className={`h-16 rounded-lg flex flex-col items-center justify-center text-[11px] transition-transform hover:scale-105 border ${
                     hasTrades
                       ? isPositive
                         ? 'bg-green-500/30 border-green-500/40 text-green-100'
                         : 'bg-red-500/30 border-red-500/40 text-red-100'
-                      : 'bg-slate-800/50 border-slate-700 text-slate-300'
+                      : 'bg-slate-800/70 border-slate-700 text-slate-300'
                   } ${selectedDay === dateKey ? 'ring-2 ring-purple-400 ring-offset-2 ring-offset-slate-900' : ''}`}
                 >
-                  <div className="font-semibold text-base">{date.getDate()}</div>
+                  <div className="font-semibold text-sm">{date.getDate()}</div>
                   <div className="text-[10px]">
-                    {hasTrades ? `${dayData.wins}W/${dayData.losses}L` : '—'}
+                    {hasTrades ? `${dayData.wins}W/${dayData.losses}L` : 'No trades'}
+                  </div>
+                  <div
+                    className={`text-[10px] font-semibold ${
+                      hasTrades ? (isPositive ? 'text-green-100' : 'text-red-100') : 'text-slate-400'
+                    }`}
+                  >
+                    {hasTrades ? formatDayPnL(dayData.profitLoss) : ''}
                   </div>
                 </button>
               );
