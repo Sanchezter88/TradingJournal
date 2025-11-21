@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   BarChart,
   Bar,
@@ -7,9 +7,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Line,
   AreaChart,
-  Area
+  Area,
+  Cell
 } from 'recharts';
 import {
   Calendar,
@@ -19,7 +19,8 @@ import {
   Target,
   ArrowLeft,
   ArrowRight,
-  DollarSign
+  DollarSign,
+  ChevronDown
 } from 'lucide-react';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -27,6 +28,8 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
   maximumFractionDigits: 2
 });
+
+const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
 const formatDayPnL = (value) => {
   const numeric = Number(value) || 0;
@@ -37,29 +40,8 @@ const formatDayPnL = (value) => {
   return `${sign}$${compact}`;
 };
 
-const periodOptions = [
-  { value: 'mtd', label: 'Month to Date' },
-  { value: '3m', label: 'Last 3 Months' },
-  { value: '6m', label: 'Last 6 Months' },
-  { value: 'ytd', label: 'Year to Date' },
-  { value: 'all', label: 'All Time' }
-];
-
-const getPeriodStartDate = (period) => {
-  const now = new Date();
-  switch (period) {
-    case 'mtd':
-      return new Date(now.getFullYear(), now.getMonth(), 1);
-    case '3m':
-      return new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    case '6m':
-      return new Date(now.getFullYear(), now.getMonth() - 5, 1);
-    case 'ytd':
-      return new Date(now.getFullYear(), 0, 1);
-    default:
-      return null;
-  }
-};
+const monthLabel = (date) =>
+  date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
 const parseISODate = (value) => {
   if (!value) return null;
@@ -73,9 +55,6 @@ const formatDateKey = (date) => {
   const day = `${date.getDate()}`.padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
-
-const monthLabel = (date) =>
-  date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
 const buildMonthOptions = (trades) => {
   const now = new Date();
@@ -108,6 +87,96 @@ const buildMonthOptions = (trades) => {
   return options;
 };
 
+const generateCalendarMatrix = (baseDate) => {
+  const start = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+  const startDay = start.getDay();
+  const matrixStart = new Date(start.getFullYear(), start.getMonth(), 1 - startDay);
+  return Array.from({ length: 42 }).map((_, index) => {
+    const date = new Date(matrixStart);
+    date.setDate(matrixStart.getDate() + index);
+    return {
+      date,
+      currentMonth: date.getMonth() === baseDate.getMonth()
+    };
+  });
+};
+
+const getQuickRanges = () => {
+  const today = startOfDay(new Date());
+  const startOfWeek = () => {
+    const start = new Date(today);
+    start.setDate(start.getDate() - start.getDay());
+    return start;
+  };
+  const endOfWeek = () => {
+    const end = startOfWeek();
+    end.setDate(end.getDate() + 6);
+    return end;
+  };
+  const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
+  const endOfMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  const startOfQuarter = (date) => {
+    const quarter = Math.floor(date.getMonth() / 3) * 3;
+    return new Date(date.getFullYear(), quarter, 1);
+  };
+  const endOfQuarter = (date) => new Date(startOfQuarter(date).getFullYear(), startOfQuarter(date).getMonth() + 3, 0);
+
+  return [
+    {
+      label: 'Today',
+      getRange: () => ({ start: today, end: today })
+    },
+    {
+      label: 'This Week',
+      getRange: () => ({ start: startOfWeek(), end: endOfWeek() })
+    },
+    {
+      label: 'This Month',
+      getRange: () => ({ start: startOfMonth(today), end: endOfMonth(today) })
+    },
+    {
+      label: 'Last 30 Days',
+      getRange: () => {
+        const end = new Date(today);
+        const start = new Date(today);
+        start.setDate(start.getDate() - 29);
+        return { start, end };
+      }
+    },
+    {
+      label: 'Last Month',
+      getRange: () => {
+        const reference = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        return { start: startOfMonth(reference), end: endOfMonth(reference) };
+      }
+    },
+    {
+      label: 'This Quarter',
+      getRange: () => ({ start: startOfQuarter(today), end: endOfQuarter(today) })
+    },
+    {
+      label: 'YTD',
+      getRange: () => ({ start: new Date(today.getFullYear(), 0, 1), end: today })
+    },
+    {
+      label: 'All Time',
+      getRange: () => ({ start: null, end: null })
+    }
+  ];
+};
+
+const formatRangeLabel = (range) => {
+  const formatter = { month: 'short', day: 'numeric', year: 'numeric' };
+  if (!range.start && !range.end) return 'All Time';
+  const startLabel = range.start
+    ? range.start.toLocaleDateString('en-US', formatter)
+    : '—';
+  const endLabel = range.end
+    ? range.end.toLocaleDateString('en-US', formatter)
+    : '—';
+  return `${startLabel} - ${endLabel}`;
+};
+
 function App() {
   const [trades, setTrades] = useState(() => {
     const savedTrades = localStorage.getItem('tradingJournalTrades');
@@ -124,7 +193,6 @@ function App() {
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTrade, setEditingTrade] = useState(null);
-  const [selectedPeriod, setSelectedPeriod] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -133,8 +201,7 @@ function App() {
   const [filters, setFilters] = useState({
     timeRange: 'all',
     dayOfWeek: 'all',
-    instrument: 'all',
-    search: ''
+    instrument: 'all'
   });
   const [formData, setFormData] = useState({
     date: '',
@@ -146,6 +213,22 @@ function App() {
     profitLoss: ''
   });
 
+  const defaultRange = useMemo(() => {
+    const today = startOfDay(new Date());
+    const start = new Date(today);
+    start.setDate(start.getDate() - 29);
+    return { start, end: today };
+  }, []);
+
+  const [dateRange, setDateRange] = useState(defaultRange);
+  const [rangePickerOpen, setRangePickerOpen] = useState(false);
+  const [rangeSelection, setRangeSelection] = useState(defaultRange);
+  const [rangeMonth, setRangeMonth] = useState(
+    () => new Date(defaultRange.end.getFullYear(), defaultRange.end.getMonth(), 1)
+  );
+  const quickRangePresets = useMemo(() => getQuickRanges(), []);
+  const rangePickerRef = useRef(null);
+
   useEffect(() => {
     localStorage.setItem('tradingJournalTrades', JSON.stringify(trades));
   }, [trades]);
@@ -153,6 +236,25 @@ function App() {
   useEffect(() => {
     setSelectedDay(null);
   }, [selectedMonth]);
+
+  useEffect(() => {
+    if (rangePickerOpen) {
+      setRangeSelection(dateRange);
+      const anchor = dateRange.end || dateRange.start || startOfDay(new Date());
+      setRangeMonth(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
+    }
+  }, [rangePickerOpen, dateRange]);
+
+  useEffect(() => {
+    if (!rangePickerOpen) return undefined;
+    const handler = (event) => {
+      if (rangePickerRef.current && !rangePickerRef.current.contains(event.target)) {
+        setRangePickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [rangePickerOpen]);
 
   const handleAddTrade = () => {
     if (!formData.date || !formData.time || !formData.riskReward || !formData.profitLoss) {
@@ -258,29 +360,28 @@ function App() {
     return date ? days[date.getDay()] : 'Unknown';
   };
 
-  const periodFilteredTrades = useMemo(() => {
-    const startDate = getPeriodStartDate(selectedPeriod);
-    if (!startDate) return trades;
+  const rangeFilteredTrades = useMemo(() => {
     return trades.filter((trade) => {
       const tradeDate = parseISODate(trade.date);
-      return tradeDate && tradeDate >= startDate;
+      if (!tradeDate) return false;
+      if (dateRange.start && tradeDate < dateRange.start) return false;
+      if (dateRange.end && tradeDate > dateRange.end) return false;
+      return true;
     });
-  }, [trades, selectedPeriod]);
+  }, [trades, dateRange]);
 
   const filteredTrades = useMemo(() => {
-    const searchTerm = filters.search.trim().toLowerCase();
-    return periodFilteredTrades.filter((trade) => {
+    return rangeFilteredTrades.filter((trade) => {
       const timeRange = getTimeRange(trade.time);
       const dayOfWeek = getDayOfWeek(trade.date);
 
       if (filters.timeRange !== 'all' && timeRange !== filters.timeRange) return false;
       if (filters.dayOfWeek !== 'all' && dayOfWeek !== filters.dayOfWeek) return false;
       if (filters.instrument !== 'all' && trade.instrument !== filters.instrument) return false;
-      if (searchTerm && !trade.instrument.toLowerCase().includes(searchTerm)) return false;
 
       return true;
     });
-  }, [periodFilteredTrades, filters]);
+  }, [rangeFilteredTrades, filters]);
 
   const metrics = useMemo(() => {
     const wins = filteredTrades.filter((trade) => trade.result === 'win').length;
@@ -338,7 +439,7 @@ function App() {
     });
   }, [filteredTrades]);
 
-  const pnlData = useMemo(() => {
+  const dailyPnLData = useMemo(() => {
     const grouped = filteredTrades.reduce((acc, trade) => {
       if (!trade.date) return acc;
       const key = trade.date;
@@ -347,17 +448,21 @@ function App() {
       return acc;
     }, {});
 
-    const sorted = Object.values(grouped).sort((a, b) => (a.date > b.date ? 1 : -1));
-    let cumulative = 0;
-    return sorted.map((entry) => {
-      cumulative += entry.pnl;
-      return {
+    return Object.values(grouped)
+      .sort((a, b) => (a.date > b.date ? 1 : -1))
+      .map((entry) => ({
         ...entry,
-        label: new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        cumulative
-      };
-    });
+        label: new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      }));
   }, [filteredTrades]);
+
+  const cumulativePnLData = useMemo(() => {
+    let cumulative = 0;
+    return dailyPnLData.map((entry) => {
+      cumulative += entry.pnl;
+      return { ...entry, cumulative };
+    });
+  }, [dailyPnLData]);
 
   const instrumentData = useMemo(() => {
     const instruments = Array.from(new Set(trades.map((trade) => trade.instrument)));
@@ -454,6 +559,95 @@ function App() {
   const selectedDayLabel = selectedDay
     ? new Date(selectedDay).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
     : 'Select a day to view trades';
+
+  const rangeMonthNext = new Date(rangeMonth.getFullYear(), rangeMonth.getMonth() + 1, 1);
+  const rangeCalendar = (monthDate) => {
+    const days = generateCalendarMatrix(monthDate);
+    return (
+      <div>
+        <div className="text-center text-slate-200 font-semibold mb-2">{monthLabel(monthDate)}</div>
+        <div className="grid grid-cols-7 gap-1 text-[11px] text-slate-400 mb-1">
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day) => (
+            <div key={`${monthDate}-${day}`} className="text-center">
+              {day}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {days.map(({ date, currentMonth }) => {
+            const dayKey = startOfDay(date).getTime();
+            const selectionStart = rangeSelection.start ? rangeSelection.start.getTime() : null;
+            const selectionEnd = rangeSelection.end ? rangeSelection.end.getTime() : null;
+            const isStart = selectionStart && dayKey === selectionStart;
+            const isEnd = selectionEnd && dayKey === selectionEnd;
+            const inRange =
+              selectionStart && selectionEnd
+                ? dayKey >= selectionStart && dayKey <= selectionEnd
+                : selectionStart && !selectionEnd
+                  ? dayKey === selectionStart
+                  : false;
+
+            return (
+              <button
+                key={`${monthDate.toISOString()}-${dayKey}`}
+                onClick={() => {
+                  const normalized = startOfDay(date);
+                  if (!rangeSelection.start || (rangeSelection.start && rangeSelection.end)) {
+                    setRangeSelection({ start: normalized, end: null });
+                  } else if (normalized < rangeSelection.start) {
+                    setRangeSelection({ start: normalized, end: rangeSelection.start });
+                  } else if (normalized.getTime() === rangeSelection.start.getTime()) {
+                    setRangeSelection({ start: normalized, end: null });
+                  } else {
+                    setRangeSelection({ start: rangeSelection.start, end: normalized });
+                  }
+                }}
+                className={`h-8 text-xs rounded-md border transition-colors ${
+                  currentMonth ? 'text-slate-200' : 'text-slate-500'
+                } ${
+                  inRange
+                    ? 'bg-purple-600/40 border-purple-400'
+                    : 'bg-slate-800/70 border-slate-700 hover:border-purple-400'
+                } ${isStart || isEnd ? 'ring-2 ring-purple-300' : ''}`}
+              >
+                {date.getDate()}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const applyRangeSelection = () => {
+    if (!rangeSelection.start) return;
+    const finalRange = {
+      start: rangeSelection.start,
+      end: rangeSelection.end || rangeSelection.start
+    };
+    setDateRange(finalRange);
+    setRangePickerOpen(false);
+  };
+
+  const clearRangeSelection = () => {
+    const allTime = { start: null, end: null };
+    setDateRange(allTime);
+    setRangeSelection(allTime);
+    const now = startOfDay(new Date());
+    setRangeMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+    setRangePickerOpen(false);
+  };
+
+  const handleQuickRange = (getRange) => {
+    const range = getRange();
+    if (range.start) range.start = startOfDay(range.start);
+    if (range.end) range.end = startOfDay(range.end);
+    setDateRange(range);
+    setRangeSelection(range);
+    const anchor = range.end || range.start || startOfDay(new Date());
+    setRangeMonth(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
+    setRangePickerOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
@@ -575,29 +769,80 @@ function App() {
           </div>
         )}
 
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-slate-700">
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-slate-700 relative">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-2">
               <Filter className="w-5 h-5 text-purple-400" />
               <h2 className="text-xl font-semibold">Filters</h2>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {periodOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setSelectedPeriod(option.value)}
-                  className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                    selectedPeriod === option.value
-                      ? 'border-purple-400 bg-purple-500/20 text-white'
-                      : 'border-slate-600 text-slate-300 hover:border-purple-400'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+            <div className="relative w-full sm:w-auto" ref={rangePickerRef}>
+              <button
+                onClick={() => setRangePickerOpen((prev) => !prev)}
+                className="w-full sm:w-auto bg-slate-900/80 border border-slate-600 hover:border-purple-400 px-4 py-2 rounded-lg flex items-center justify-between gap-3 text-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-purple-300" />
+                  <span>{formatRangeLabel(dateRange)}</span>
+                </div>
+                <ChevronDown className="w-4 h-4 text-slate-300" />
+              </button>
+              {rangePickerOpen && (
+                <div className="absolute right-0 mt-2 w-full sm:w-[620px] bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-4 z-50">
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <div className="md:w-40 flex flex-col gap-2">
+                      {quickRangePresets.map((preset) => (
+                        <button
+                          key={preset.label}
+                          onClick={() => handleQuickRange(preset.getRange)}
+                          className="text-left text-sm px-3 py-2 rounded-lg bg-slate-800 hover:bg-purple-600/30 border border-slate-700 hover:border-purple-400"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-3">
+                        <button
+                          onClick={() => setRangeMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                        </button>
+                        <div className="text-sm text-slate-300">
+                          {monthLabel(rangeMonth)} · {monthLabel(rangeMonthNext)}
+                        </div>
+                        <button
+                          onClick={() => setRangeMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                          className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700"
+                        >
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {rangeCalendar(rangeMonth)}
+                        {rangeCalendar(rangeMonthNext)}
+                      </div>
+                      <div className="mt-4 flex justify-end gap-2 text-sm">
+                        <button
+                          onClick={clearRangeSelection}
+                          className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:border-purple-400"
+                        >
+                          Clear
+                        </button>
+                        <button
+                          onClick={applyRangeSelection}
+                          className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm text-slate-400 mb-2">Time Range</label>
               <select
@@ -643,16 +888,6 @@ function App() {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm text-slate-400 mb-2">Search Instruments</label>
-              <input
-                type="text"
-                value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                className="w-full bg-slate-700 rounded-lg px-4 py-2 border border-slate-600 focus:border-purple-400 focus:outline-none"
-                placeholder="e.g., NQ"
-              />
-            </div>
           </div>
         </div>
 
@@ -697,13 +932,57 @@ function App() {
 
           <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 rounded-xl p-6 border border-emerald-500/30">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400">Net P&amp;L</span>
+              <span className="text-slate-400">Net P&L</span>
               <DollarSign className="w-5 h-5 text-emerald-400" />
             </div>
             <div className={`text-3xl font-bold ${metrics.netPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {currencyFormatter.format(metrics.netPnL)}
             </div>
-            <div className="text-sm text-slate-400 mt-1">Selected period</div>
+            <div className="text-sm text-slate-400 mt-1">Selected range</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+            <h3 className="text-xl font-semibold mb-4">Daily Net Cumulative P&L</h3>
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={cumulativePnLData}>
+                <defs>
+                  <linearGradient id="cumulativeGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="label" stroke="#9ca3af" />
+                <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569' }}
+                  formatter={(value) => [currencyFormatter.format(value), 'Cumulative P&L']}
+                />
+                <Area type="monotone" dataKey="cumulative" stroke="#22c55e" fillOpacity={1} fill="url(#cumulativeGradient)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+            <h3 className="text-xl font-semibold mb-4">Net Daily P&L</h3>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={dailyPnLData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="label" stroke="#9ca3af" />
+                <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569' }}
+                  formatter={(value) => [currencyFormatter.format(value), 'Daily P&L']}
+                />
+                <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
+                  {dailyPnLData.map((entry) => (
+                    <Cell key={entry.date} fill={entry.pnl >= 0 ? '#22c55e' : '#f87171'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
@@ -739,29 +1018,6 @@ function App() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-slate-700">
-          <h3 className="text-xl font-semibold mb-4">Daily P&amp;L</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={pnlData}>
-              <defs>
-                <linearGradient id="pnlGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="label" stroke="#9ca3af" />
-              <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569' }}
-                formatter={(value) => [currencyFormatter.format(value), 'Profit / Loss']}
-              />
-              <Area type="monotone" dataKey="pnl" stroke="#22c55e" fillOpacity={1} fill="url(#pnlGradient)" />
-              <Line type="monotone" dataKey="cumulative" stroke="#e879f9" strokeWidth={2} dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
         </div>
 
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-slate-700">
@@ -837,7 +1093,7 @@ function App() {
                   </div>
                   <div
                     className={`text-[10px] font-semibold ${
-                      hasTrades ? (isPositive ? 'text-green-100' : 'text-red-100') : 'text-slate-400'
+                      hasTrades ? (isPositive ? 'text-green-100' : 'text-red-100') : 'text-slate-500'
                     }`}
                   >
                     {hasTrades ? formatDayPnL(dayData.profitLoss) : ''}
@@ -898,7 +1154,7 @@ function App() {
                       <div className="text-xl font-semibold text-red-400">{inst.losses}</div>
                     </div>
                     <div className="flex-1 text-right">
-                      <div className="text-sm text-slate-400">Net P&amp;L</div>
+                      <div className="text-sm text-slate-400">Net P&L</div>
                       <div className={`text-xl font-semibold ${inst.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {currencyFormatter.format(inst.pnl)}
                       </div>
