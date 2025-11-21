@@ -249,6 +249,21 @@ function App() {
     }
   });
   const [checklistInputs, setChecklistInputs] = useState({});
+  const [strategies, setStrategies] = useState(() => {
+    const saved = localStorage.getItem('tradingJournalStrategies');
+    if (!saved) return [];
+    try {
+      return JSON.parse(saved);
+    } catch (error) {
+      return [];
+    }
+  });
+  const [strategyBuilderOpen, setStrategyBuilderOpen] = useState(false);
+  const [strategyForm, setStrategyForm] = useState({
+    name: '',
+    itemInput: '',
+    items: []
+  });
 
   useEffect(() => {
     localStorage.setItem('tradingJournalTrades', JSON.stringify(trades));
@@ -258,10 +273,15 @@ function App() {
     localStorage.setItem('tradingJournalDayNotes', JSON.stringify(dayNotes));
   }, [dayNotes]);
 
+  useEffect(() => {
+    localStorage.setItem('tradingJournalStrategies', JSON.stringify(strategies));
+  }, [strategies]);
+
   const createDefaultDayEntry = () => ({
     notes: '',
     checklist: [],
-    screenshots: []
+    screenshots: [],
+    strategyId: null
   });
 
   const updateDayEntry = (dateKey, updater) => {
@@ -305,6 +325,69 @@ function App() {
       ...entry,
       checklist: entry.checklist.filter((item) => item.id !== itemId)
     }));
+  };
+
+  const handleStrategyApply = (dateKey, strategyId) => {
+    if (!dateKey) return;
+    if (!strategyId) {
+      updateDayEntry(dateKey, (entry) => ({ ...entry, strategyId: null }));
+      return;
+    }
+    const template = strategies.find((strategy) => strategy.id === strategyId);
+    if (!template) return;
+    updateDayEntry(dateKey, (entry) => ({
+      ...entry,
+      strategyId: template.id,
+      checklist: template.items.map((item) => ({
+        id: `${Date.now()}-${item.id}`,
+        label: item.label,
+        checked: false
+      }))
+    }));
+  };
+
+  const handleStrategyFormChange = (field, value) => {
+    setStrategyForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleStrategyFormAddItem = () => {
+    const label = strategyForm.itemInput.trim();
+    if (!label) return;
+    setStrategyForm((prev) => ({
+      ...prev,
+      itemInput: '',
+      items: [...prev.items, { id: Date.now(), label }]
+    }));
+  };
+
+  const handleStrategyFormRemoveItem = (itemId) => {
+    setStrategyForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((item) => item.id !== itemId)
+    }));
+  };
+
+  const resetStrategyForm = () =>
+    setStrategyForm({
+      name: '',
+      itemInput: '',
+      items: []
+    });
+
+  const handleStrategySave = () => {
+    const name = strategyForm.name.trim();
+    if (!name || strategyForm.items.length === 0) return;
+    const newStrategy = {
+      id: Date.now(),
+      name,
+      items: strategyForm.items.map((item) => ({
+        id: item.id,
+        label: item.label
+      }))
+    };
+    setStrategies((prev) => [...prev, newStrategy]);
+    setStrategyBuilderOpen(false);
+    resetStrategyForm();
   };
 
   const handleScreenshotUpload = (dateKey, files) => {
@@ -677,8 +760,8 @@ function App() {
 
   const selectedDayEntry = selectedDay
     ? dayNotes[selectedDay] ?? createDefaultDayEntry()
-    : createDefaultDayEntry();
-  const selectedDayChecklistInput = checklistInputs[selectedDay] || '';
+    : null;
+  const selectedDayChecklistInput = selectedDay ? checklistInputs[selectedDay] || '' : '';
 
   const handleMonthChange = (offset) => {
     setSelectedMonth((prev) => {
@@ -710,7 +793,7 @@ function App() {
 
   const selectedDayLabel = selectedDay
     ? new Date(selectedDay).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-    : 'Select a day to view trades';
+    : 'Journal Entry';
 
   const rangeMonthNext = new Date(rangeMonth.getFullYear(), rangeMonth.getMonth() + 1, 1);
   const rangeCalendar = (monthDate) => {
@@ -1241,7 +1324,9 @@ function App() {
               return (
                 <button
                   key={dateKey}
-                  onClick={() => setSelectedDay(dateKey)}
+                  onClick={() =>
+                    setSelectedDay((prev) => (prev === dateKey ? null : dateKey))
+                  }
                   title={
                     hasTrades
                       ? `${date.toLocaleDateString()} • ${dayData.wins}W/${dayData.losses}L • ${currencyFormatter.format(
@@ -1272,11 +1357,9 @@ function App() {
               );
             })}
           </div>
-          <div className="mt-4 bg-slate-900/60 rounded-xl p-4 border border-slate-700">
-            <h4 className="text-lg font-semibold mb-4">{selectedDayLabel}</h4>
-            {!selectedDay ? (
-              <p className="text-slate-400 text-sm">Select a day on the calendar to review notes and trades.</p>
-            ) : (
+          {selectedDay && selectedDayEntry && (
+            <div className="mt-4 bg-slate-900/60 rounded-xl p-4 border border-slate-700">
+              <h4 className="text-lg font-semibold mb-4">{selectedDayLabel}</h4>
               <div className="space-y-6">
                 <div>
                   <h5 className="text-sm uppercase tracking-wide text-slate-400 mb-2">Trades</h5>
@@ -1318,23 +1401,138 @@ function App() {
                       placeholder="Document market context, psychology, mistakes, lessons..."
                     />
                     <div className="mt-4">
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <span className="text-sm uppercase tracking-wide text-slate-400">Strategy Checklist</span>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={selectedDayChecklistInput}
-                            onChange={(e) => handleChecklistInputChange(selectedDay, e.target.value)}
-                            placeholder="Add checklist step"
-                            className="bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1 text-xs focus:outline-none focus:border-purple-400"
-                          />
+                        <div className="flex flex-wrap items-center gap-2">
+                          {strategies.length > 0 && (
+                            <select
+                              value={selectedDayEntry.strategyId || ''}
+                              onChange={(e) =>
+                                handleStrategyApply(
+                                  selectedDay,
+                                  e.target.value ? Number(e.target.value) : null
+                                )
+                              }
+                              className="bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1 text-xs focus:outline-none focus:border-purple-400"
+                            >
+                              <option value="">Choose strategy</option>
+                              {strategies.map((strategy) => (
+                                <option key={strategy.id} value={strategy.id}>
+                                  {strategy.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                           <button
-                            onClick={() => handleAddChecklistItem(selectedDay)}
-                            className="px-2 py-1 text-xs rounded-lg bg-purple-600/60 hover:bg-purple-600 transition-colors"
+                            onClick={() => setStrategyBuilderOpen((prev) => !prev)}
+                            className="px-2 py-1 text-xs rounded-lg border border-purple-400 text-purple-200 hover:bg-purple-500/20 transition-colors"
                           >
-                            Add
+                            {strategyBuilderOpen ? 'Close Builder' : 'New Strategy'}
                           </button>
                         </div>
+                      </div>
+                      {selectedDayEntry.strategyId &&
+                        strategies.some((strategy) => strategy.id === selectedDayEntry.strategyId) && (
+                          <div className="flex items-center justify-between text-xs text-slate-400 bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2 mb-3">
+                            <span>
+                              Applied:{' '}
+                              {
+                                strategies.find((strategy) => strategy.id === selectedDayEntry.strategyId)?.name
+                              }
+                            </span>
+                            <button
+                              onClick={() => handleStrategyApply(selectedDay, null)}
+                              className="text-red-300 hover:text-red-200"
+                            >
+                              Clear Strategy
+                            </button>
+                          </div>
+                        )}
+                      {strategyBuilderOpen && (
+                        <div className="bg-slate-900/70 border border-slate-700 rounded-lg p-3 mb-3 space-y-3">
+                          <div>
+                            <label className="block text-xs uppercase tracking-wide text-slate-400 mb-1">
+                              Strategy Name
+                            </label>
+                            <input
+                              type="text"
+                              value={strategyForm.name}
+                              onChange={(e) => handleStrategyFormChange('name', e.target.value)}
+                              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
+                              placeholder="e.g., London Sweep + NY Reversal"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs uppercase tracking-wide text-slate-400 mb-1">
+                              Checklist Items
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={strategyForm.itemInput}
+                                onChange={(e) => handleStrategyFormChange('itemInput', e.target.value)}
+                                className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
+                                placeholder="Add condition"
+                              />
+                              <button
+                                onClick={handleStrategyFormAddItem}
+                                className="px-3 py-2 text-xs rounded-lg bg-purple-600/70 hover:bg-purple-600 transition-colors"
+                              >
+                                Add Step
+                              </button>
+                            </div>
+                            {strategyForm.items.length > 0 && (
+                              <ul className="mt-2 space-y-2">
+                                {strategyForm.items.map((item) => (
+                                  <li
+                                    key={item.id}
+                                    className="flex items-center justify-between bg-slate-800/70 border border-slate-700 rounded-lg px-3 py-2 text-sm"
+                                  >
+                                    <span>{item.label}</span>
+                                    <button
+                                      onClick={() => handleStrategyFormRemoveItem(item.id)}
+                                      className="text-slate-500 hover:text-red-400 transition-colors"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                          <div className="flex justify-end gap-2 text-xs">
+                            <button
+                              onClick={() => {
+                                setStrategyBuilderOpen(false);
+                                resetStrategyForm();
+                              }}
+                              className="px-3 py-2 rounded-lg border border-slate-600 text-slate-300 hover:border-purple-400"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleStrategySave}
+                              className="px-3 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600"
+                            >
+                              Save Strategy
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex gap-2 mb-3">
+                        <input
+                          type="text"
+                          value={selectedDayChecklistInput}
+                          onChange={(e) => handleChecklistInputChange(selectedDay, e.target.value)}
+                          placeholder="Add checklist step"
+                          className="flex-1 bg-slate-900/70 border border-slate-700 rounded-lg px-3 py-1 text-xs focus:outline-none focus:border-purple-400"
+                        />
+                        <button
+                          onClick={() => handleAddChecklistItem(selectedDay)}
+                          className="px-2 py-1 text-xs rounded-lg bg-purple-600/60 hover:bg-purple-600 transition-colors"
+                        >
+                          Add
+                        </button>
                       </div>
                       {selectedDayEntry.checklist.length === 0 ? (
                         <p className="text-slate-500 text-xs">Create steps you expect to see before entering trades.</p>
@@ -1422,8 +1620,8 @@ function App() {
                   </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-slate-700">
