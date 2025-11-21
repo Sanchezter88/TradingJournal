@@ -57,6 +57,12 @@ const formatDateKey = (date) => {
   return `${year}-${month}-${day}`;
 };
 
+const clampToToday = (date) => {
+  if (!date) return null;
+  const today = startOfDay(new Date());
+  return date > today ? today : date;
+};
+
 const buildMonthOptions = (trades) => {
   const now = new Date();
   const nowStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -465,6 +471,7 @@ function App() {
     }, {});
 
     const sortedKeys = Object.keys(dailyTotals).sort();
+    const today = startOfDay(new Date());
     const defaultStart = dateRange.start
       ? startOfDay(dateRange.start)
       : sortedKeys.length
@@ -476,8 +483,10 @@ function App() {
         ? startOfDay(parseISODate(sortedKeys[sortedKeys.length - 1]))
         : defaultStart;
 
-    let cursor = defaultStart ? new Date(defaultStart) : startOfDay(new Date());
-    let endDate = defaultEnd ? new Date(defaultEnd) : new Date(cursor);
+    let cursor = defaultStart ? new Date(defaultStart) : new Date(today);
+    let endDate = defaultEnd ? new Date(defaultEnd) : new Date(today);
+    if (cursor > today) cursor = new Date(today);
+    if (endDate > today) endDate = new Date(today);
     if (endDate < cursor) endDate = new Date(cursor);
 
     const data = [];
@@ -658,10 +667,20 @@ function App() {
 
   const applyRangeSelection = () => {
     if (!rangeSelection.start) return;
+    const today = startOfDay(new Date());
     const finalRange = {
-      start: rangeSelection.start,
-      end: rangeSelection.end || rangeSelection.start
+      start: rangeSelection.start > today ? today : rangeSelection.start,
+      end: rangeSelection.end
+        ? rangeSelection.end > today
+          ? today
+          : rangeSelection.end
+        : rangeSelection.start > today
+          ? today
+          : rangeSelection.start
     };
+    if (finalRange.start > finalRange.end) {
+      finalRange.start = finalRange.end;
+    }
     setDateRange(finalRange);
     setRangePickerOpen(false);
   };
@@ -677,8 +696,8 @@ function App() {
 
   const handleQuickRange = (getRange) => {
     const range = getRange();
-    if (range.start) range.start = startOfDay(range.start);
-    if (range.end) range.end = startOfDay(range.end);
+    if (range.start) range.start = clampToToday(startOfDay(range.start));
+    if (range.end) range.end = clampToToday(startOfDay(range.end));
     setDateRange(range);
     setRangeSelection(range);
     const anchor = range.end || range.start || startOfDay(new Date());
