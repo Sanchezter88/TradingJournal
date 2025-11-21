@@ -9,7 +9,8 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-  Cell
+  Cell,
+  ReferenceLine
 } from 'recharts';
 import {
   Calendar,
@@ -983,7 +984,10 @@ function App() {
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 relative z-0">
             <h3 className="text-xl font-semibold mb-4">Daily Net Cumulative P&L</h3>
             <ResponsiveContainer width="100%" height={320}>
-              <AreaChart data={cumulativePnLData}>
+              <AreaChart
+                data={cumulativePnLData}
+                margin={{ left: 50, right: 20, top: 20, bottom: 10 }}
+              >
                 <defs>
                   <linearGradient id="cumulativeGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#22c55e" stopOpacity={0.4} />
@@ -1005,7 +1009,10 @@ function App() {
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 relative z-0">
             <h3 className="text-xl font-semibold mb-4">Net Daily P&L</h3>
             <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={dailyPnLData}>
+              <BarChart
+                data={dailyPnLData}
+                margin={{ left: 50, right: 20, top: 20, bottom: 10 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="label" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
@@ -1013,6 +1020,7 @@ function App() {
                   contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569' }}
                   formatter={(value) => [currencyFormatter.format(value), 'Daily P&L']}
                 />
+                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                   {dailyPnLData.map((entry) => (
                     <Cell key={entry.date} fill={entry.pnl >= 0 ? '#22c55e' : '#f87171'} />
