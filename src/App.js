@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Calendar, Filter, TrendingUp, TrendingDown, Clock, Target } from 'lucide-react';
+import { Calendar, Filter, TrendingUp, Clock, Target } from 'lucide-react';
 
 function App() {
   // Load trades from localStorage on initial render
