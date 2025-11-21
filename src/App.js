@@ -272,6 +272,7 @@ function App() {
 
     const signedProfitLoss =
       formData.result === 'loss' ? -Math.abs(parsedProfitLoss) : Math.abs(parsedProfitLoss);
+    const normalizedRiskReward = formData.result === 'loss' ? -1 : parsedRiskReward;
 
     const newTrade = {
       id: Date.now(),
@@ -280,7 +281,7 @@ function App() {
       side: formData.side,
       instrument: formData.instrument,
       result: formData.result,
-      riskReward: parsedRiskReward,
+      riskReward: normalizedRiskReward,
       profitLoss: signedProfitLoss
     };
 
@@ -313,7 +314,10 @@ function App() {
       side: trade.side,
       instrument: trade.instrument,
       result: trade.result,
-      riskReward: trade.riskReward.toString(),
+      riskReward:
+        trade.result === 'loss'
+          ? '-1'
+          : (trade.riskReward ?? '').toString(),
       profitLoss:
         trade.profitLoss !== undefined && trade.profitLoss !== null
           ? Math.abs(trade.profitLoss).toString()
@@ -339,6 +343,19 @@ function App() {
       result: 'win',
       riskReward: '',
       profitLoss: ''
+    });
+  };
+
+  const handleResultChange = (value) => {
+    setFormData((prev) => {
+      const currentValue = Number(prev.riskReward);
+      const adjusted =
+        value === 'loss'
+          ? '-1'
+          : Number.isNaN(currentValue)
+            ? prev.riskReward
+            : Math.abs(currentValue).toString();
+      return { ...prev, result: value, riskReward: adjusted };
     });
   };
 
@@ -440,21 +457,40 @@ function App() {
   }, [filteredTrades]);
 
   const dailyPnLData = useMemo(() => {
-    const grouped = filteredTrades.reduce((acc, trade) => {
+    const dailyTotals = filteredTrades.reduce((acc, trade) => {
       if (!trade.date) return acc;
-      const key = trade.date;
-      if (!acc[key]) acc[key] = { date: key, pnl: 0 };
-      acc[key].pnl += trade.profitLoss || 0;
+      acc[trade.date] = (acc[trade.date] || 0) + (trade.profitLoss || 0);
       return acc;
     }, {});
 
-    return Object.values(grouped)
-      .sort((a, b) => (a.date > b.date ? 1 : -1))
-      .map((entry) => ({
-        ...entry,
-        label: new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      }));
-  }, [filteredTrades]);
+    const sortedKeys = Object.keys(dailyTotals).sort();
+    const defaultStart = dateRange.start
+      ? startOfDay(dateRange.start)
+      : sortedKeys.length
+        ? startOfDay(parseISODate(sortedKeys[0]))
+        : startOfDay(new Date());
+    const defaultEnd = dateRange.end
+      ? startOfDay(dateRange.end)
+      : sortedKeys.length
+        ? startOfDay(parseISODate(sortedKeys[sortedKeys.length - 1]))
+        : defaultStart;
+
+    let cursor = defaultStart ? new Date(defaultStart) : startOfDay(new Date());
+    let endDate = defaultEnd ? new Date(defaultEnd) : new Date(cursor);
+    if (endDate < cursor) endDate = new Date(cursor);
+
+    const data = [];
+    while (cursor <= endDate) {
+      const key = formatDateKey(cursor);
+      data.push({
+        date: key,
+        pnl: dailyTotals[key] || 0,
+        label: cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return data;
+  }, [filteredTrades, dateRange]);
 
   const cumulativePnLData = useMemo(() => {
     let cumulative = 0;
@@ -720,7 +756,7 @@ function App() {
                     <label className="block text-sm text-slate-400 mb-2">Result</label>
                     <select
                       value={formData.result}
-                      onChange={(e) => setFormData({ ...formData, result: e.target.value })}
+                      onChange={(e) => handleResultChange(e.target.value)}
                       className="w-full bg-slate-700 rounded-lg px-4 py-2 border border-slate-600 focus:border-purple-400 focus:outline-none"
                     >
                       <option value="win">Win</option>
@@ -734,8 +770,9 @@ function App() {
                       step="0.1"
                       value={formData.riskReward}
                       onChange={(e) => setFormData({ ...formData, riskReward: e.target.value })}
-                      className="w-full bg-slate-700 rounded-lg px-4 py-2 border border-slate-600 focus:border-purple-400 focus:outline-none"
-                      placeholder="e.g., 2.5 or -1"
+                      className="w-full bg-slate-700 rounded-lg px-4 py-2 border border-slate-600 focus:border-purple-400 focus:outline-none disabled:opacity-60"
+                      placeholder="e.g., 2.5"
+                      disabled={formData.result === 'loss'}
                     />
                   </div>
                 </div>
@@ -769,7 +806,7 @@ function App() {
           </div>
         )}
 
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-slate-700 relative">
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-slate-700 relative z-20">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-2">
               <Filter className="w-5 h-5 text-purple-400" />
@@ -943,7 +980,7 @@ function App() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 relative z-0">
             <h3 className="text-xl font-semibold mb-4">Daily Net Cumulative P&L</h3>
             <ResponsiveContainer width="100%" height={320}>
               <AreaChart data={cumulativePnLData}>
@@ -965,7 +1002,7 @@ function App() {
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700 relative z-0">
             <h3 className="text-xl font-semibold mb-4">Net Daily P&L</h3>
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={dailyPnLData}>
@@ -1020,7 +1057,7 @@ function App() {
           </div>
         </div>
 
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-slate-700">
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 mb-6 border border-slate-700 relative z-10">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-purple-400" />
