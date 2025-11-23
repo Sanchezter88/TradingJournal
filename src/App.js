@@ -25,7 +25,9 @@ import {
   CheckCircle,
   Circle,
   Image as ImageIcon,
-  Trash2
+  Eye,
+  Trash2,
+  X
 } from 'lucide-react';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -265,6 +267,7 @@ function App() {
     itemInput: '',
     items: []
   });
+  const [activeScreenshot, setActiveScreenshot] = useState(null);
 
   useEffect(() => {
     localStorage.setItem('tradingJournalTrades', JSON.stringify(trades));
@@ -277,6 +280,17 @@ function App() {
   useEffect(() => {
     localStorage.setItem('tradingJournalStrategies', JSON.stringify(strategies));
   }, [strategies]);
+
+  useEffect(() => {
+    if (!activeScreenshot) return;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setActiveScreenshot(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeScreenshot]);
 
   const createDefaultDayEntry = () => ({
     notes: '',
@@ -1670,27 +1684,28 @@ function App() {
                     {selectedDayEntry.screenshots.length === 0 ? (
                       <p className="text-slate-500 text-xs">Attach chart screenshots or markups for this session.</p>
                     ) : (
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-4">
                         {selectedDayEntry.screenshots.map((shot) => (
-                          <div key={shot.id} className="relative group">
+                          <div
+                            key={shot.id}
+                            className="relative group rounded-xl border border-slate-700 bg-slate-900/50 overflow-hidden"
+                          >
                             <img
                               src={shot.dataUrl}
                               alt={shot.name}
-                              className="rounded-lg border border-slate-700 object-cover h-32 w-full"
+                              className="w-full h-52 md:h-64 object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                             />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
-                              <a
-                                href={shot.dataUrl}
-                                download={shot.name}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-2 py-1 text-xs bg-slate-900/80 rounded-lg border border-slate-600"
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                              <button
+                                onClick={() => setActiveScreenshot(shot)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-slate-900/80 rounded-lg border border-slate-600 hover:border-purple-400"
                               >
+                                <Eye className="w-4 h-4" />
                                 View
-                              </a>
+                              </button>
                               <button
                                 onClick={() => handleScreenshotRemove(selectedDay, shot.id)}
-                                className="p-1 rounded-lg bg-red-500/80 text-white"
+                                className="p-2 rounded-lg bg-red-500/80 text-white"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -1827,6 +1842,43 @@ function App() {
           )}
         </div>
       </div>
+      {activeScreenshot && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Screenshot preview"
+          onClick={() => setActiveScreenshot(null)}
+        >
+          <div
+            className="relative max-w-5xl w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setActiveScreenshot(null)}
+              className="absolute -top-4 -right-4 bg-slate-900/80 border border-slate-700 rounded-full p-2 text-slate-200 hover:text-white hover:border-purple-400"
+              aria-label="Close screenshot preview"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <img
+              src={activeScreenshot.dataUrl}
+              alt={activeScreenshot.name}
+              className="w-full max-h-[80vh] object-contain rounded-lg border border-slate-700 bg-slate-900"
+            />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-300">
+              <span className="truncate">{activeScreenshot.name}</span>
+              <a
+                href={activeScreenshot.dataUrl}
+                download={activeScreenshot.name}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-600 hover:border-purple-400 bg-slate-900/70"
+              >
+                Download
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
