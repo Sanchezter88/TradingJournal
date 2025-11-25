@@ -247,6 +247,21 @@ const NetDailyTooltip = ({ active, payload, label }) => {
   );
 };
 
+const AvgPnLTooltip = ({ active, payload, label }) => {
+  if (!active || !payload || !payload.length) return null;
+  const value = payload[0]?.value || 0;
+  const pnlColor = value >= 0 ? '#22c55e' : '#f87171';
+
+  return (
+    <div style={{ ...tooltipBoxStyle }}>
+      <p style={{ margin: 0, marginBottom: '4px', color: '#f8fafc', fontSize: '14px' }}>{label}</p>
+      <p style={{ margin: 0, color: pnlColor, fontSize: '14px', fontWeight: 600 }}>
+        Avg P&L: {currencyFormatter.format(value)}
+      </p>
+    </div>
+  );
+};
+
 function App() {
   const [trades, setTrades] = useState(() => {
     const savedTrades = localStorage.getItem('tradingJournalTrades');
@@ -1435,13 +1450,7 @@ function App() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="range" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
-                <Tooltip
-                  contentStyle={{ ...tooltipBoxStyle }}
-                  formatter={(value) => [
-                    <span style={{ color: value >= 0 ? '#22c55e' : '#f87171' }}>{currencyFormatter.format(value)}</span>,
-                    <span style={{ color: value >= 0 ? '#22c55e' : '#f87171' }}>Avg P&L</span>
-                  ]}
-                />
+                <Tooltip content={<AvgPnLTooltip />} />
                 <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
                 <Bar dataKey="avgPnL" radius={[4, 4, 0, 0]}>
                   {avgPnLByTime.map((entry) => (
@@ -1459,13 +1468,7 @@ function App() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="day" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
-                <Tooltip
-                  contentStyle={{ ...tooltipBoxStyle }}
-                  formatter={(value) => [
-                    <span style={{ color: value >= 0 ? '#22c55e' : '#f87171' }}>{currencyFormatter.format(value)}</span>,
-                    <span style={{ color: value >= 0 ? '#22c55e' : '#f87171' }}>Avg P&L</span>
-                  ]}
-                />
+                <Tooltip content={<AvgPnLTooltip />} />
                 <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
                 <Bar dataKey="avgPnL" radius={[4, 4, 0, 0]}>
                   {avgPnLByDay.map((entry) => (
