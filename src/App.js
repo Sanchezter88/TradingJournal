@@ -38,13 +38,20 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 
 const getPnLColor = (value) => (value >= 0 ? '#22c55e' : '#f87171');
 
-const createPnLTooltipFormatter = (label) => (value) => {
+const createPnLTooltipFormatter = (label, options = {}) => (value) => {
   const numeric = Number(value) || 0;
+  const color = getPnLColor(numeric);
+  const formattedLabel = options.colorLabel
+    ? (
+        <span style={{ color, fontWeight: 600 }}>
+          {label}
+        </span>
+      )
+    : label;
+
   return [
-    <span style={{ color: getPnLColor(numeric), fontWeight: 600 }}>
-      {currencyFormatter.format(numeric)}
-    </span>,
-    label
+    <span style={{ color, fontWeight: 600 }}>{currencyFormatter.format(numeric)}</span>,
+    formattedLabel
   ];
 };
 
@@ -1326,7 +1333,7 @@ function App() {
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569' }}
-                  formatter={createPnLTooltipFormatter('Daily P&L')}
+                  formatter={createPnLTooltipFormatter('Daily P&L', { colorLabel: true })}
                 />
                 <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
