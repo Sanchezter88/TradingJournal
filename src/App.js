@@ -196,15 +196,16 @@ const NetDailyTooltip = ({ active, payload, label }) => {
   const pnlColor = value >= 0 ? '#22c55e' : '#f87171';
 
   return (
-    <div
-      style={{
-        backgroundColor: '#0f172a',
-        border: '1px solid #475569',
-        padding: '8px 12px'
-      }}
-    >
-      <p className="text-sm text-slate-300">{label}</p>
-      <p className="text-sm font-semibold" style={{ color: pnlColor }}>
+    <div style={{ backgroundColor: '#0f172a', border: '1px solid #475569', padding: '10px 12px' }}>
+      <p style={{ margin: 0, marginBottom: '4px', color: '#f8fafc', fontSize: '14px' }}>{label}</p>
+      <p
+        style={{
+          margin: 0,
+          color: pnlColor,
+          fontSize: '14px',
+          fontWeight: 600
+        }}
+      >
         Daily P&L: {currencyFormatter.format(value)}
       </p>
     </div>
@@ -1323,7 +1324,7 @@ function App() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="label" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
-                <Tooltip content={<NetDailyTooltip />} cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }} />
+                <Tooltip content={<NetDailyTooltip />} />
                 <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                   {dailyPnLData.map((entry) => (
