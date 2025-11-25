@@ -38,21 +38,41 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 
 const getPnLColor = (value) => (value >= 0 ? '#22c55e' : '#f87171');
 
-const createPnLTooltipFormatter = (label, options = {}) => (value) => {
+const createPnLTooltipFormatter = (label) => (value) => {
   const numeric = Number(value) || 0;
-  const color = getPnLColor(numeric);
-  const formattedLabel = options.colorLabel
-    ? (
-        <span style={{ color, fontWeight: 600 }}>
-          {label}
-        </span>
-      )
-    : label;
-
   return [
-    <span style={{ color, fontWeight: 600 }}>{currencyFormatter.format(numeric)}</span>,
-    formattedLabel
+    <span style={{ color: getPnLColor(numeric), fontWeight: 600 }}>
+      {currencyFormatter.format(numeric)}
+    </span>,
+    label
   ];
+};
+
+const NetPnLTooltip = ({ active, payload, label, title }) => {
+  if (!active || !payload || payload.length === 0) return null;
+  const entry = payload[0];
+  const value = entry?.value ?? 0;
+  const color = getPnLColor(value);
+  const heading = title || entry?.name || '';
+
+  return (
+    <div
+      style={{
+        backgroundColor: '#0f172a',
+        border: '1px solid #475569',
+        borderRadius: '0.5rem',
+        padding: '0.5rem 0.75rem',
+        minWidth: '150px'
+      }}
+    >
+      {label && (
+        <div style={{ fontSize: '0.75rem', color: '#cbd5f5', marginBottom: '0.25rem' }}>{label}</div>
+      )}
+      <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+        <span style={{ color }}>{heading}</span>: {currencyFormatter.format(value)}
+      </div>
+    </div>
+  );
 };
 
 const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -1331,10 +1351,7 @@ function App() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="label" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569' }}
-                  formatter={createPnLTooltipFormatter('Daily P&L', { colorLabel: true })}
-                />
+                <Tooltip content={<NetPnLTooltip title="Daily P&L" />} />
                 <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                   {dailyPnLData.map((entry) => (
