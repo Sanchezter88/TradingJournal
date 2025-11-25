@@ -1378,7 +1378,7 @@ function App() {
                 <XAxis dataKey="range" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                  contentStyle={{ ...tooltipBoxStyle }}
                   formatter={(value) => [`${value}%`, 'Win Rate']}
                 />
                 <Bar dataKey="winRate" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
@@ -1394,7 +1394,7 @@ function App() {
                 <XAxis dataKey="day" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                  contentStyle={{ ...tooltipBoxStyle }}
                   formatter={(value) => [`${value}%`, 'Win Rate']}
                 />
                 <Bar dataKey="winRate" fill="#06b6d4" radius={[8, 8, 0, 0]} />
