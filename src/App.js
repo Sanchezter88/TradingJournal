@@ -178,6 +178,34 @@ const getQuickRanges = () => {
   ];
 };
 
+const TIME_RANGES = ['9:30-9:45', '9:45-10:00', '10:00-10:15', '10:15-10:30', '10:30+'];
+const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+const groupTradesBy = (trades, getKey, labels = []) => {
+  const groups = labels.reduce((acc, label) => {
+    acc[label] = [];
+    return acc;
+  }, {});
+
+  trades.forEach((trade) => {
+    const key = getKey(trade);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(trade);
+  });
+
+  return groups;
+};
+
+const sumProfitLoss = (trades) => trades.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0);
+
+const averagePnL = (trades) => {
+  if (!trades || trades.length === 0) return 0;
+  return sumProfitLoss(trades) / trades.length;
+};
+
+const calculateWinRate = (wins, total, digits = 1) =>
+  total > 0 ? parseFloat(((wins / total) * 100).toFixed(digits)) : 0;
+
 const formatRangeLabel = (range) => {
   const formatter = { month: 'short', day: 'numeric', year: 'numeric' };
   if (!range.start && !range.end) return 'All Time';
@@ -719,64 +747,60 @@ function App() {
       ? (filteredTrades.reduce((sum, trade) => sum + trade.riskReward, 0) / total).toFixed(2)
       : '0.00';
 
-    const netPnL = filteredTrades.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0);
+    const netPnL = sumProfitLoss(filteredTrades);
 
     return { wins, losses, total, winRate, profitFactor, avgRR, netPnL };
   }, [filteredTrades]);
 
+  const timeGroupedTrades = useMemo(
+    () => groupTradesBy(filteredTrades, (trade) => getTimeRange(trade.time), TIME_RANGES),
+    [filteredTrades]
+  );
+
+  const dayGroupedTrades = useMemo(
+    () => groupTradesBy(filteredTrades, (trade) => getDayOfWeek(trade.date), WEEK_DAYS),
+    [filteredTrades]
+  );
+
   const timeRangeData = useMemo(() => {
-    const ranges = ['9:30-9:45', '9:45-10:00', '10:00-10:15', '10:15-10:30', '10:30+'];
-    return ranges.map((range) => {
-      const rangeTrades = filteredTrades.filter((trade) => getTimeRange(trade.time) === range);
+    return TIME_RANGES.map((range) => {
+      const rangeTrades = timeGroupedTrades[range] ?? [];
       const wins = rangeTrades.filter((trade) => trade.result === 'win').length;
       const total = rangeTrades.length;
       return {
         range,
-        winRate: total > 0 ? parseFloat(((wins / total) * 100).toFixed(1)) : 0,
+        winRate: calculateWinRate(wins, total),
         trades: total
       };
     });
-  }, [filteredTrades]);
+  }, [timeGroupedTrades]);
 
   const dayData = useMemo(() => {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    return days.map((day) => {
-      const dayTrades = filteredTrades.filter((trade) => getDayOfWeek(trade.date) === day);
+    return WEEK_DAYS.map((day) => {
+      const dayTrades = dayGroupedTrades[day] ?? [];
       const wins = dayTrades.filter((trade) => trade.result === 'win').length;
       const total = dayTrades.length;
       return {
         day,
-        winRate: total > 0 ? parseFloat(((wins / total) * 100).toFixed(1)) : 0,
+        winRate: calculateWinRate(wins, total),
         trades: total
       };
     });
-  }, [filteredTrades]);
+  }, [dayGroupedTrades]);
 
   const avgPnLByTime = useMemo(() => {
-    const ranges = ['9:30-9:45', '9:45-10:00', '10:00-10:15', '10:15-10:30', '10:30+'];
-    return ranges.map((range) => {
-      const rangeTrades = filteredTrades.filter((trade) => getTimeRange(trade.time) === range);
-      const total = rangeTrades.length;
-      const pnlTotal = rangeTrades.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0);
-      return {
-        range,
-        avgPnL: total > 0 ? pnlTotal / total : 0
-      };
-    });
-  }, [filteredTrades]);
+    return TIME_RANGES.map((range) => ({
+      range,
+      avgPnL: averagePnL(timeGroupedTrades[range])
+    }));
+  }, [timeGroupedTrades]);
 
   const avgPnLByDay = useMemo(() => {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    return days.map((day) => {
-      const dayTrades = filteredTrades.filter((trade) => getDayOfWeek(trade.date) === day);
-      const total = dayTrades.length;
-      const pnlTotal = dayTrades.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0);
-      return {
-        day,
-        avgPnL: total > 0 ? pnlTotal / total : 0
-      };
-    });
-  }, [filteredTrades]);
+    return WEEK_DAYS.map((day) => ({
+      day,
+      avgPnL: averagePnL(dayGroupedTrades[day])
+    }));
+  }, [dayGroupedTrades]);
 
   const dailyPnLData = useMemo(() => {
     const dailyTotals = filteredTrades.reduce((acc, trade) => {
@@ -831,7 +855,7 @@ function App() {
       const instTrades = filteredTrades.filter((trade) => trade.instrument === instrument);
       const wins = instTrades.filter((trade) => trade.result === 'win').length;
       const total = instTrades.length;
-      const pnl = instTrades.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0);
+      const pnl = sumProfitLoss(instTrades);
       return {
         instrument,
         wins,
