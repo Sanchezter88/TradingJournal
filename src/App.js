@@ -10,7 +10,8 @@ import {
   AreaChart,
   Area,
   Cell,
-  ReferenceLine
+  ReferenceLine,
+  DefaultTooltipContent
 } from 'recharts';
 import {
   Calendar,
@@ -48,30 +49,35 @@ const createPnLTooltipFormatter = (label) => (value) => {
   ];
 };
 
-const NetPnLTooltip = ({ active, payload, label, title }) => {
+const NetPnLTooltip = (props) => {
+  const { active, payload } = props;
   if (!active || !payload || payload.length === 0) return null;
-  const entry = payload[0];
-  const value = entry?.value ?? 0;
-  const color = getPnLColor(value);
-  const heading = title || entry?.name || '';
+
+  const styledPayload = payload.map((entry) => {
+    const value = Number(entry.value) || 0;
+    return {
+      ...entry,
+      name: (
+        <span style={{ color: getPnLColor(value), fontWeight: 600 }}>
+          {entry.name}
+        </span>
+      ),
+      value: currencyFormatter.format(value)
+    };
+  });
 
   return (
-    <div
-      style={{
+    <DefaultTooltipContent
+      {...props}
+      payload={styledPayload}
+      wrapperStyle={{
         backgroundColor: '#0f172a',
         border: '1px solid #475569',
-        borderRadius: '0.5rem',
-        padding: '0.5rem 0.75rem',
-        minWidth: '150px'
+        borderRadius: '0.5rem'
       }}
-    >
-      {label && (
-        <div style={{ fontSize: '0.75rem', color: '#cbd5f5', marginBottom: '0.25rem' }}>{label}</div>
-      )}
-      <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-        <span style={{ color }}>{heading}</span>: {currencyFormatter.format(value)}
-      </div>
-    </div>
+      labelStyle={{ color: '#cbd5f5' }}
+      itemStyle={{ color: '#e2e8f0' }}
+    />
   );
 };
 
