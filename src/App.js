@@ -225,42 +225,49 @@ const tooltipBoxStyle = {
   minWidth: '200px'
 };
 
-const NetDailyTooltip = ({ active, payload, label }) => {
-  if (!active || !payload || !payload.length) return null;
-  const value = payload[0]?.value || 0;
-  const pnlColor = value >= 0 ? '#22c55e' : '#f87171';
-
-  return (
-    <div style={{ ...tooltipBoxStyle }}>
-      <p style={{ margin: 0, marginBottom: '4px', color: '#f8fafc', fontSize: '14px' }}>{label}</p>
+const TooltipContent = ({ label, entries }) => (
+  <div style={{ ...tooltipBoxStyle }}>
+    <p style={{ margin: 0, marginBottom: '4px', color: '#f8fafc', fontSize: '14px' }}>{label}</p>
+    {entries.map((entry) => (
       <p
+        key={entry.label}
         style={{
           margin: 0,
-          color: pnlColor,
+          color: entry.color,
           fontSize: '14px',
           fontWeight: 600
         }}
       >
-        Daily P&L: {currencyFormatter.format(value)}
+        {entry.label}: {entry.value}
       </p>
-    </div>
-  );
-};
+    ))}
+  </div>
+);
 
-const AvgPnLTooltip = ({ active, payload, label }) => {
+const createTooltipRenderer = (getEntries) => ({ active, payload, label }) => {
   if (!active || !payload || !payload.length) return null;
-  const value = payload[0]?.value || 0;
-  const pnlColor = value >= 0 ? '#22c55e' : '#f87171';
-
-  return (
-    <div style={{ ...tooltipBoxStyle }}>
-      <p style={{ margin: 0, marginBottom: '4px', color: '#f8fafc', fontSize: '14px' }}>{label}</p>
-      <p style={{ margin: 0, color: pnlColor, fontSize: '14px', fontWeight: 600 }}>
-        Avg P&L: {currencyFormatter.format(value)}
-      </p>
-    </div>
-  );
+  const entries = getEntries(payload);
+  return <TooltipContent label={label} entries={entries} />;
 };
+
+const buildPnLTooltip = (textLabel) =>
+  createTooltipRenderer((payload) => {
+    const value = payload[0]?.value || 0;
+    const color = value >= 0 ? '#22c55e' : '#f87171';
+    return [{ label: textLabel, value: currencyFormatter.format(value), color }];
+  });
+
+const buildWinRateTooltip = (color) =>
+  createTooltipRenderer((payload) => {
+    const value = payload[0]?.value || 0;
+    return [{ label: 'Win Rate', value: `${value}%`, color }];
+  });
+
+const CumulativePnLTooltip = buildPnLTooltip('Cumulative P&L');
+const NetDailyTooltip = buildPnLTooltip('Daily P&L');
+const AvgPnLTooltip = buildPnLTooltip('Avg P&L');
+const WinRateTimeTooltip = buildWinRateTooltip('#8b5cf6');
+const WinRateDayTooltip = buildWinRateTooltip('#06b6d4');
 
 function App() {
   const [trades, setTrades] = useState(() => {
@@ -1377,10 +1384,7 @@ function App() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="label" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
-                <Tooltip
-                  contentStyle={{ ...tooltipBoxStyle }}
-                  formatter={(value) => [currencyFormatter.format(value), 'Cumulative P&L']}
-                />
+                <Tooltip content={<CumulativePnLTooltip />} />
                 <Area type="monotone" dataKey="cumulative" stroke="#22c55e" fillOpacity={1} fill="url(#cumulativeGradient)" />
               </AreaChart>
             </ResponsiveContainer>
@@ -1416,10 +1420,7 @@ function App() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="range" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
-                <Tooltip
-                  contentStyle={{ ...tooltipBoxStyle }}
-                  formatter={(value) => [`${value}%`, 'Win Rate']}
-                />
+                <Tooltip content={<WinRateTimeTooltip />} />
                 <Bar dataKey="winRate" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -1432,10 +1433,7 @@ function App() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="day" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
-                <Tooltip
-                  contentStyle={{ ...tooltipBoxStyle }}
-                  formatter={(value) => [`${value}%`, 'Win Rate']}
-                />
+                <Tooltip content={<WinRateDayTooltip />} />
                 <Bar dataKey="winRate" fill="#06b6d4" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
