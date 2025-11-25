@@ -10,8 +10,7 @@ import {
   AreaChart,
   Area,
   Cell,
-  ReferenceLine,
-  DefaultTooltipContent
+  ReferenceLine
 } from 'recharts';
 import {
   Calendar,
@@ -36,50 +35,6 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
   maximumFractionDigits: 2
 });
-
-const getPnLColor = (value) => (value >= 0 ? '#22c55e' : '#f87171');
-
-const createPnLTooltipFormatter = (label) => (value) => {
-  const numeric = Number(value) || 0;
-  return [
-    <span style={{ color: getPnLColor(numeric), fontWeight: 600 }}>
-      {currencyFormatter.format(numeric)}
-    </span>,
-    label
-  ];
-};
-
-const NetPnLTooltip = (props) => {
-  const { active, payload } = props;
-  if (!active || !payload || payload.length === 0) return null;
-
-  const styledPayload = payload.map((entry) => {
-    const value = Number(entry.value) || 0;
-    return {
-      ...entry,
-      name: (
-        <span style={{ color: getPnLColor(value), fontWeight: 600 }}>
-          {entry.name}
-        </span>
-      ),
-      value: currencyFormatter.format(value)
-    };
-  });
-
-  return (
-    <DefaultTooltipContent
-      {...props}
-      payload={styledPayload}
-      wrapperStyle={{
-        backgroundColor: '#0f172a',
-        border: '1px solid #475569',
-        borderRadius: '0.5rem'
-      }}
-      labelStyle={{ color: '#cbd5f5' }}
-      itemStyle={{ color: '#e2e8f0' }}
-    />
-  );
-};
 
 const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
@@ -746,15 +701,10 @@ function App() {
       const rangeTrades = filteredTrades.filter((trade) => getTimeRange(trade.time) === range);
       const wins = rangeTrades.filter((trade) => trade.result === 'win').length;
       const total = rangeTrades.length;
-      const avgPnL =
-        total > 0
-          ? rangeTrades.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0) / total
-          : 0;
       return {
         range,
         winRate: total > 0 ? parseFloat(((wins / total) * 100).toFixed(1)) : 0,
-        trades: total,
-        avgPnL
+        trades: total
       };
     });
   }, [filteredTrades]);
@@ -765,15 +715,10 @@ function App() {
       const dayTrades = filteredTrades.filter((trade) => getDayOfWeek(trade.date) === day);
       const wins = dayTrades.filter((trade) => trade.result === 'win').length;
       const total = dayTrades.length;
-      const avgPnL =
-        total > 0
-          ? dayTrades.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0) / total
-          : 0;
       return {
         day,
         winRate: total > 0 ? parseFloat(((wins / total) * 100).toFixed(1)) : 0,
-        trades: total,
-        avgPnL
+        trades: total
       };
     });
   }, [filteredTrades]);
@@ -1357,11 +1302,14 @@ function App() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="label" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
-                <Tooltip content={<NetPnLTooltip title="Daily P&L" />} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569' }}
+                  formatter={(value) => [currencyFormatter.format(value), 'Daily P&L']}
+                />
                 <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                   {dailyPnLData.map((entry) => (
-                    <Cell key={entry.date} fill={getPnLColor(entry.pnl)} />
+                    <Cell key={entry.date} fill={entry.pnl >= 0 ? '#22c55e' : '#f87171'} />
                   ))}
                 </Bar>
               </BarChart>
@@ -1373,7 +1321,7 @@ function App() {
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
             <h3 className="text-xl font-semibold mb-4">Win Rate by Time</h3>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={timeRangeData} margin={{ left: 50, right: 20, top: 20, bottom: 10 }}>
+              <BarChart data={timeRangeData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="range" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
@@ -1389,7 +1337,7 @@ function App() {
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
             <h3 className="text-xl font-semibold mb-4">Win Rate by Day</h3>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={dayData} margin={{ left: 50, right: 20, top: 20, bottom: 10 }}>
+              <BarChart data={dayData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="day" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
@@ -1398,42 +1346,6 @@ function App() {
                   formatter={(value) => [`${value}%`, 'Win Rate']}
                 />
                 <Bar dataKey="winRate" fill="#06b6d4" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-            <h3 className="text-xl font-semibold mb-4">Average P&L by Time</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={timeRangeData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="range" stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569' }}
-                  formatter={createPnLTooltipFormatter('Average P&L')}
-                />
-                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
-                <Bar dataKey="avgPnL" fill="#f97316" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
-            <h3 className="text-xl font-semibold mb-4">Average P&L by Day</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={dayData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="day" stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569' }}
-                  formatter={createPnLTooltipFormatter('Average P&L')}
-                />
-                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
-                <Bar dataKey="avgPnL" fill="#34d399" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
