@@ -1437,7 +1437,7 @@ function App() {
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
                 <Tooltip
                   contentStyle={{ ...tooltipBoxStyle }}
-                  formatter={(value) => [currencyFormatter.format(value), 'Avg P&L']}
+                  formatter={(value) => [<span style={{ color: value >= 0 ? '#22c55e' : '#f87171' }}>{currencyFormatter.format(value)}</span>, 'Avg P&L']}
                 />
                 <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
                 <Bar dataKey="avgPnL" radius={[4, 4, 0, 0]}>
@@ -1458,7 +1458,7 @@ function App() {
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
                 <Tooltip
                   contentStyle={{ ...tooltipBoxStyle }}
-                  formatter={(value) => [currencyFormatter.format(value), 'Avg P&L']}
+                  formatter={(value) => [<span style={{ color: value >= 0 ? '#22c55e' : '#f87171' }}>{currencyFormatter.format(value)}</span>, 'Avg P&L']}
                 />
                 <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
                 <Bar dataKey="avgPnL" radius={[4, 4, 0, 0]}>
