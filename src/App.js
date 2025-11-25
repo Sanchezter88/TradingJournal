@@ -752,6 +752,32 @@ function App() {
     });
   }, [filteredTrades]);
 
+  const avgPnLByTime = useMemo(() => {
+    const ranges = ['9:30-9:45', '9:45-10:00', '10:00-10:15', '10:15-10:30', '10:30+'];
+    return ranges.map((range) => {
+      const rangeTrades = filteredTrades.filter((trade) => getTimeRange(trade.time) === range);
+      const total = rangeTrades.length;
+      const pnlTotal = rangeTrades.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0);
+      return {
+        range,
+        avgPnL: total > 0 ? pnlTotal / total : 0
+      };
+    });
+  }, [filteredTrades]);
+
+  const avgPnLByDay = useMemo(() => {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    return days.map((day) => {
+      const dayTrades = filteredTrades.filter((trade) => getDayOfWeek(trade.date) === day);
+      const total = dayTrades.length;
+      const pnlTotal = dayTrades.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0);
+      return {
+        day,
+        avgPnL: total > 0 ? pnlTotal / total : 0
+      };
+    });
+  }, [filteredTrades]);
+
   const dailyPnLData = useMemo(() => {
     const dailyTotals = filteredTrades.reduce((acc, trade) => {
       if (!trade.date) return acc;
@@ -1372,6 +1398,50 @@ function App() {
                   formatter={(value) => [`${value}%`, 'Win Rate']}
                 />
                 <Bar dataKey="winRate" fill="#06b6d4" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+            <h3 className="text-xl font-semibold mb-4">Avg P&L by Time</h3>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={avgPnLByTime} margin={{ left: 20, right: 20, top: 20, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="range" stroke="#9ca3af" />
+                <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
+                <Tooltip
+                  contentStyle={{ ...tooltipBoxStyle }}
+                  formatter={(value) => [currencyFormatter.format(value), 'Avg P&L']}
+                />
+                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
+                <Bar dataKey="avgPnL" radius={[4, 4, 0, 0]}>
+                  {avgPnLByTime.map((entry) => (
+                    <Cell key={entry.range} fill={entry.avgPnL >= 0 ? '#22c55e' : '#f87171'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+            <h3 className="text-xl font-semibold mb-4">Avg P&L by Day</h3>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={avgPnLByDay} margin={{ left: 20, right: 20, top: 20, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="day" stroke="#9ca3af" />
+                <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
+                <Tooltip
+                  contentStyle={{ ...tooltipBoxStyle }}
+                  formatter={(value) => [currencyFormatter.format(value), 'Avg P&L']}
+                />
+                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
+                <Bar dataKey="avgPnL" radius={[4, 4, 0, 0]}>
+                  {avgPnLByDay.map((entry) => (
+                    <Cell key={entry.day} fill={entry.avgPnL >= 0 ? '#22c55e' : '#f87171'} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
