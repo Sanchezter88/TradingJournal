@@ -276,7 +276,8 @@ function App() {
     try {
       return JSON.parse(savedTrades).map((trade) => ({
         ...trade,
-        profitLoss: typeof trade.profitLoss === 'number' ? trade.profitLoss : 0
+        profitLoss: typeof trade.profitLoss === 'number' ? trade.profitLoss : 0,
+        contracts: typeof trade.contracts === 'number' ? trade.contracts : 1
       }));
     } catch (error) {
       return [];
@@ -298,6 +299,7 @@ function App() {
   const [formData, setFormData] = useState({
     date: '',
     time: '',
+    contracts: '1',
     side: 'long',
     instrument: 'NQ!',
     result: 'win',
@@ -619,6 +621,9 @@ function App() {
     const signedProfitLoss =
       formData.result === 'loss' ? -Math.abs(parsedProfitLoss) : Math.abs(parsedProfitLoss);
     const normalizedRiskReward = formData.result === 'loss' ? -1 : parsedRiskReward;
+    const parsedContracts = parseInt(formData.contracts, 10);
+    const normalizedContracts =
+      Number.isNaN(parsedContracts) || parsedContracts <= 0 ? 1 : parsedContracts;
 
     const newTrade = {
       id: Date.now(),
@@ -628,7 +633,8 @@ function App() {
       instrument: formData.instrument,
       result: formData.result,
       riskReward: normalizedRiskReward,
-      profitLoss: signedProfitLoss
+      profitLoss: signedProfitLoss,
+      contracts: normalizedContracts
     };
 
     if (editingTrade) {
@@ -643,6 +649,7 @@ function App() {
     setFormData({
       date: '',
       time: '',
+      contracts: '1',
       side: 'long',
       instrument: 'NQ!',
       result: 'win',
@@ -657,6 +664,7 @@ function App() {
     setFormData({
       date: trade.date,
       time: trade.time,
+      contracts: (trade.contracts ?? 1).toString(),
       side: trade.side,
       instrument: trade.instrument,
       result: trade.result,
@@ -684,6 +692,7 @@ function App() {
     setFormData({
       date: '',
       time: '',
+      contracts: '1',
       side: 'long',
       instrument: 'NQ!',
       result: 'win',
@@ -1112,6 +1121,17 @@ function App() {
                     type="time"
                     value={formData.time}
                     onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                    className="w-full bg-slate-700 rounded-lg px-4 py-2 border border-slate-600 focus:border-purple-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-2">Contracts</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={formData.contracts}
+                    onChange={(e) => setFormData({ ...formData, contracts: e.target.value })}
                     className="w-full bg-slate-700 rounded-lg px-4 py-2 border border-slate-600 focus:border-purple-400 focus:outline-none"
                   />
                 </div>
