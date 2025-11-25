@@ -196,7 +196,13 @@ const NetDailyTooltip = ({ active, payload, label }) => {
   const pnlColor = value >= 0 ? '#22c55e' : '#f87171';
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-2 shadow-lg">
+    <div
+      style={{
+        backgroundColor: '#0f172a',
+        border: '1px solid #475569',
+        padding: '8px 12px'
+      }}
+    >
       <p className="text-sm text-slate-300">{label}</p>
       <p className="text-sm font-semibold" style={{ color: pnlColor }}>
         Daily P&L: {currencyFormatter.format(value)}
