@@ -1331,7 +1331,7 @@ function App() {
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
             <h3 className="text-xl font-semibold mb-4">Win Rate by Time</h3>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={timeRangeData}>
+              <BarChart data={timeRangeData} margin={{ left: 50, right: 20, top: 20, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="range" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
@@ -1347,7 +1347,7 @@ function App() {
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
             <h3 className="text-xl font-semibold mb-4">Win Rate by Day</h3>
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={dayData}>
+              <BarChart data={dayData} margin={{ left: 50, right: 20, top: 20, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="day" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
