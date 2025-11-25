@@ -701,10 +701,15 @@ function App() {
       const rangeTrades = filteredTrades.filter((trade) => getTimeRange(trade.time) === range);
       const wins = rangeTrades.filter((trade) => trade.result === 'win').length;
       const total = rangeTrades.length;
+      const avgPnL =
+        total > 0
+          ? rangeTrades.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0) / total
+          : 0;
       return {
         range,
         winRate: total > 0 ? parseFloat(((wins / total) * 100).toFixed(1)) : 0,
-        trades: total
+        trades: total,
+        avgPnL
       };
     });
   }, [filteredTrades]);
@@ -715,10 +720,15 @@ function App() {
       const dayTrades = filteredTrades.filter((trade) => getDayOfWeek(trade.date) === day);
       const wins = dayTrades.filter((trade) => trade.result === 'win').length;
       const total = dayTrades.length;
+      const avgPnL =
+        total > 0
+          ? dayTrades.reduce((sum, trade) => sum + (trade.profitLoss || 0), 0) / total
+          : 0;
       return {
         day,
         winRate: total > 0 ? parseFloat(((wins / total) * 100).toFixed(1)) : 0,
-        trades: total
+        trades: total,
+        avgPnL
       };
     });
   }, [filteredTrades]);
@@ -1346,6 +1356,42 @@ function App() {
                   formatter={(value) => [`${value}%`, 'Win Rate']}
                 />
                 <Bar dataKey="winRate" fill="#06b6d4" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+            <h3 className="text-xl font-semibold mb-4">Average P&L by Time</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={timeRangeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="range" stroke="#9ca3af" />
+                <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                  formatter={(value) => [currencyFormatter.format(value), 'Average P&L']}
+                />
+                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
+                <Bar dataKey="avgPnL" fill="#f97316" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+            <h3 className="text-xl font-semibold mb-4">Average P&L by Day</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={dayData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="day" stroke="#9ca3af" />
+                <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                  formatter={(value) => [currencyFormatter.format(value), 'Average P&L']}
+                />
+                <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
+                <Bar dataKey="avgPnL" fill="#34d399" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
