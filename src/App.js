@@ -190,13 +190,20 @@ const formatRangeLabel = (range) => {
   return `${startLabel} - ${endLabel}`;
 };
 
+const tooltipBoxStyle = {
+  backgroundColor: '#0f172a',
+  border: '1px solid #475569',
+  padding: '10px 12px',
+  minWidth: '200px'
+};
+
 const NetDailyTooltip = ({ active, payload, label }) => {
   if (!active || !payload || !payload.length) return null;
   const value = payload[0]?.value || 0;
   const pnlColor = value >= 0 ? '#22c55e' : '#f87171';
 
   return (
-    <div style={{ backgroundColor: '#0f172a', border: '1px solid #475569', padding: '10px 12px' }}>
+    <div style={{ ...tooltipBoxStyle }}>
       <p style={{ margin: 0, marginBottom: '4px', color: '#f8fafc', fontSize: '14px' }}>{label}</p>
       <p
         style={{
@@ -1306,7 +1313,7 @@ function App() {
                 <XAxis dataKey="label" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569' }}
+                  contentStyle={{ ...tooltipBoxStyle }}
                   formatter={(value) => [currencyFormatter.format(value), 'Cumulative P&L']}
                 />
                 <Area type="monotone" dataKey="cumulative" stroke="#22c55e" fillOpacity={1} fill="url(#cumulativeGradient)" />
