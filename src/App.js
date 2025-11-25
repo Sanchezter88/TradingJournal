@@ -190,6 +190,21 @@ const formatRangeLabel = (range) => {
   return `${startLabel} - ${endLabel}`;
 };
 
+const NetDailyTooltip = ({ active, payload, label }) => {
+  if (!active || !payload || !payload.length) return null;
+  const value = payload[0]?.value || 0;
+  const pnlColor = value >= 0 ? '#22c55e' : '#f87171';
+
+  return (
+    <div className="rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-2 shadow-lg">
+      <p className="text-sm text-slate-300">{label}</p>
+      <p className="text-sm font-semibold" style={{ color: pnlColor }}>
+        Daily P&L: {currencyFormatter.format(value)}
+      </p>
+    </div>
+  );
+};
+
 function App() {
   const [trades, setTrades] = useState(() => {
     const savedTrades = localStorage.getItem('tradingJournalTrades');
@@ -1302,10 +1317,7 @@ function App() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="label" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" tickFormatter={(value) => currencyFormatter.format(value)} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #475569' }}
-                  formatter={(value) => [currencyFormatter.format(value), 'Daily P&L']}
-                />
+                <Tooltip content={<NetDailyTooltip />} cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }} />
                 <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                   {dailyPnLData.map((entry) => (
