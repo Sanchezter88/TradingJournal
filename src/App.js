@@ -218,6 +218,20 @@ const formatRangeLabel = (range) => {
   return `${startLabel} - ${endLabel}`;
 };
 
+const formatRiskValue = (value) => {
+  const numeric = Math.abs(Number(value)) || 0;
+  if (Number.isInteger(numeric)) return numeric.toString();
+  return numeric.toFixed(2).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+};
+
+const formatRiskRatio = (value) => `1:${formatRiskValue(value)}`;
+
+const formatTradeRiskSummary = (trade) => {
+  const ratio = formatRiskRatio(trade.riskReward || 0);
+  const label = trade.result === 'win' ? `+${formatRiskValue(trade.riskReward)}R` : '-1R';
+  return `${label} (${ratio})`;
+};
+
 const timeToMinutes = (time) => {
   if (!time) return 0;
   const [hours = 0, minutes = 0] = time.split(':').map(Number);
@@ -300,7 +314,11 @@ function App() {
       return JSON.parse(savedTrades).map((trade) => ({
         ...trade,
         profitLoss: typeof trade.profitLoss === 'number' ? trade.profitLoss : 0,
-        contracts: typeof trade.contracts === 'number' ? trade.contracts : 1
+        contracts: typeof trade.contracts === 'number' ? trade.contracts : 1,
+        riskReward:
+          typeof trade.riskReward === 'number'
+            ? Math.max(Math.abs(trade.riskReward), 1)
+            : Math.abs(Number(trade.riskReward)) || 1
       }));
     } catch (error) {
       return [];
@@ -636,14 +654,14 @@ function App() {
     const parsedRiskReward = parseFloat(formData.riskReward);
     const parsedProfitLoss = parseFloat(formData.profitLoss);
 
-    if (Number.isNaN(parsedRiskReward) || Number.isNaN(parsedProfitLoss)) {
-      alert('Please enter valid numbers for Risk Reward and Profit/Loss');
+    if (Number.isNaN(parsedRiskReward) || parsedRiskReward <= 0 || Number.isNaN(parsedProfitLoss)) {
+      alert('Please enter valid numbers for Risk Reward (must be > 0) and Profit/Loss');
       return;
     }
 
     const signedProfitLoss =
       formData.result === 'loss' ? -Math.abs(parsedProfitLoss) : Math.abs(parsedProfitLoss);
-    const normalizedRiskReward = formData.result === 'loss' ? -1 : parsedRiskReward;
+    const normalizedRiskReward = Math.abs(parsedRiskReward);
     const parsedContracts = parseInt(formData.contracts, 10);
     const normalizedContracts =
       Number.isNaN(parsedContracts) || parsedContracts <= 0 ? 1 : parsedContracts;
@@ -691,10 +709,7 @@ function App() {
       side: trade.side,
       instrument: trade.instrument,
       result: trade.result,
-      riskReward:
-        trade.result === 'loss'
-          ? '-1'
-          : (trade.riskReward ?? '').toString(),
+      riskReward: (trade.riskReward ?? '').toString(),
       profitLoss:
         trade.profitLoss !== undefined && trade.profitLoss !== null
           ? Math.abs(trade.profitLoss).toString()
@@ -725,16 +740,7 @@ function App() {
   };
 
   const handleResultChange = (value) => {
-    setFormData((prev) => {
-      const currentValue = Number(prev.riskReward);
-      const adjusted =
-        value === 'loss'
-          ? '-1'
-          : Number.isNaN(currentValue)
-            ? prev.riskReward
-            : Math.abs(currentValue).toString();
-      return { ...prev, result: value, riskReward: adjusted };
-    });
+    setFormData((prev) => ({ ...prev, result: value }));
   };
 
   const rangeFilteredTrades = useMemo(() => {
@@ -783,19 +789,15 @@ function App() {
 
     const totalWinRR = filteredTrades
       .filter((trade) => trade.result === 'win')
-      .reduce((sum, trade) => sum + trade.riskReward, 0);
+      .reduce((sum, trade) => sum + (trade.riskReward || 0), 0);
 
-    const totalLossRR = Math.abs(
-      filteredTrades
-        .filter((trade) => trade.result === 'loss')
-        .reduce((sum, trade) => sum + trade.riskReward, 0)
-    );
+    const totalLossRR = losses;
 
     const profitFactor = totalLossRR > 0 ? (totalWinRR / totalLossRR).toFixed(2) : totalWinRR > 0 ? '∞' : '0.00';
 
     const avgRR = total > 0
-      ? (filteredTrades.reduce((sum, trade) => sum + trade.riskReward, 0) / total).toFixed(2)
-      : '0.00';
+      ? filteredTrades.reduce((sum, trade) => sum + (trade.riskReward || 0), 0) / total
+      : 0;
 
     const netPnL = sumProfitLoss(filteredTrades);
 
@@ -1191,16 +1193,19 @@ function App() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm text-slate-400 mb-2">Risk Reward (R)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={formData.riskReward}
-                      onChange={(e) => setFormData({ ...formData, riskReward: e.target.value })}
-                      className="w-full bg-slate-700 rounded-lg px-4 py-2 border border-slate-600 focus:border-purple-400 focus:outline-none disabled:opacity-60"
-                      placeholder="e.g., 2.5"
-                      disabled={formData.result === 'loss'}
-                    />
+                    <label className="block text-sm text-slate-400 mb-2">Risk Reward (1:R)</label>
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-300 text-sm">1:</span>
+                      <input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={formData.riskReward}
+                        onChange={(e) => setFormData({ ...formData, riskReward: e.target.value })}
+                        className="flex-1 bg-slate-700 rounded-lg px-4 py-2 border border-slate-600 focus:border-purple-400 focus:outline-none"
+                        placeholder="Enter reward multiple"
+                      />
+                    </div>
                   </div>
                 </div>
                 <div>
@@ -1372,7 +1377,7 @@ function App() {
               <span className="text-slate-400">Avg Risk Reward</span>
               <Target className="w-5 h-5 text-purple-400" />
             </div>
-            <div className="text-3xl font-bold text-purple-400">{metrics.avgRR}</div>
+            <div className="text-3xl font-bold text-purple-400">{formatRiskRatio(metrics.avgRR || 0)}</div>
             <div className="text-sm text-slate-400 mt-1">Per trade</div>
           </div>
 
@@ -1626,7 +1631,7 @@ function App() {
                             <div className={`font-semibold ${trade.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                               {currencyFormatter.format(trade.profitLoss)}
                             </div>
-                            <div className="text-xs text-slate-400">{trade.riskReward}R</div>
+                            <div className="text-xs text-slate-400">{formatTradeRiskSummary(trade)}</div>
                           </div>
                         </div>
                       ))}
@@ -1978,10 +1983,9 @@ function App() {
                         </span>
                       </td>
                       <td className={`py-3 px-4 text-right font-semibold ${
-                        trade.riskReward > 0 ? 'text-green-400' : 'text-red-400'
+                        trade.result === 'win' ? 'text-green-400' : 'text-red-400'
                       }`}>
-                        {trade.riskReward > 0 ? '+' : ''}
-                        {trade.riskReward}R
+                        {formatTradeRiskSummary(trade)}
                       </td>
                       <td className={`py-3 px-4 text-right font-semibold ${
                         trade.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'
