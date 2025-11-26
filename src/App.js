@@ -714,10 +714,15 @@ function App() {
     });
   };
 
-  const getTimeRange = (time) => {
-    if (!time) return 'unknown';
-    const [hours, minutes] = time.split(':').map(Number);
-    const totalMinutes = hours * 60 + minutes;
+const timeToMinutes = (time) => {
+  if (!time) return 0;
+  const [hours = 0, minutes = 0] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+const getTimeRange = (time) => {
+  if (!time) return 'unknown';
+  const totalMinutes = timeToMinutes(time);
 
     if (totalMinutes >= 570 && totalMinutes < 585) return '9:30-9:45';
     if (totalMinutes >= 585 && totalMinutes < 600) return '9:45-10:00';
@@ -754,6 +759,20 @@ function App() {
       return true;
     });
   }, [rangeFilteredTrades, filters]);
+
+  const sortedTrades = useMemo(() => {
+    return [...filteredTrades].sort((a, b) => {
+      const dateA = parseISODate(a.date)?.getTime() || 0;
+      const dateB = parseISODate(b.date)?.getTime() || 0;
+      if (dateB !== dateA) return dateB - dateA;
+
+      const timeA = timeToMinutes(a.time);
+      const timeB = timeToMinutes(b.time);
+      if (timeB !== timeA) return timeB - timeA;
+
+      return (b.id || 0) - (a.id || 0);
+    });
+  }, [filteredTrades]);
 
   const metrics = useMemo(() => {
     const wins = filteredTrades.filter((trade) => trade.result === 'win').length;
@@ -1922,6 +1941,7 @@ function App() {
                   <tr className="border-b border-slate-700">
                     <th className="text-left py-3 px-4 text-slate-400 font-medium">Date</th>
                     <th className="text-left py-3 px-4 text-slate-400 font-medium">Time</th>
+                    <th className="text-left py-3 px-4 text-slate-400 font-medium">Contracts</th>
                     <th className="text-left py-3 px-4 text-slate-400 font-medium">Side</th>
                     <th className="text-left py-3 px-4 text-slate-400 font-medium">Instrument</th>
                     <th className="text-left py-3 px-4 text-slate-400 font-medium">Result</th>
@@ -1931,10 +1951,11 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTrades.map((trade) => (
+                  {sortedTrades.map((trade) => (
                     <tr key={trade.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
                       <td className="py-3 px-4">{trade.date}</td>
                       <td className="py-3 px-4">{trade.time}</td>
+                      <td className="py-3 px-4">{trade.contracts ?? 1}</td>
                       <td className="py-3 px-4">
                         <span
                           className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
