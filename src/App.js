@@ -218,6 +218,29 @@ const formatRangeLabel = (range) => {
   return `${startLabel} - ${endLabel}`;
 };
 
+const timeToMinutes = (time) => {
+  if (!time) return 0;
+  const [hours = 0, minutes = 0] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+const getTimeRange = (time) => {
+  if (!time) return 'unknown';
+  const totalMinutes = timeToMinutes(time);
+
+  if (totalMinutes >= 570 && totalMinutes < 585) return '9:30-9:45';
+  if (totalMinutes >= 585 && totalMinutes < 600) return '9:45-10:00';
+  if (totalMinutes >= 600 && totalMinutes < 615) return '10:00-10:15';
+  if (totalMinutes >= 615 && totalMinutes < 630) return '10:15-10:30';
+  return '10:30+';
+};
+
+const getDayOfWeek = (dateStr) => {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const date = parseISODate(dateStr);
+  return date ? days[date.getDay()] : 'Unknown';
+};
+
 const tooltipBoxStyle = {
   backgroundColor: '#0f172a',
   border: '1px solid #475569',
@@ -712,29 +735,6 @@ function App() {
             : Math.abs(currentValue).toString();
       return { ...prev, result: value, riskReward: adjusted };
     });
-  };
-
-const timeToMinutes = (time) => {
-  if (!time) return 0;
-  const [hours = 0, minutes = 0] = time.split(':').map(Number);
-  return hours * 60 + minutes;
-};
-
-const getTimeRange = (time) => {
-  if (!time) return 'unknown';
-  const totalMinutes = timeToMinutes(time);
-
-    if (totalMinutes >= 570 && totalMinutes < 585) return '9:30-9:45';
-    if (totalMinutes >= 585 && totalMinutes < 600) return '9:45-10:00';
-    if (totalMinutes >= 600 && totalMinutes < 615) return '10:00-10:15';
-    if (totalMinutes >= 615 && totalMinutes < 630) return '10:15-10:30';
-    return '10:30+';
-  };
-
-  const getDayOfWeek = (dateStr) => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const date = parseISODate(dateStr);
-    return date ? days[date.getDay()] : 'Unknown';
   };
 
   const rangeFilteredTrades = useMemo(() => {
