@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/TradingJournal/static/css/main.20a3025f.css",
-    "main.js": "/TradingJournal/static/js/main.77ca3687.js",
+    "main.js": "/TradingJournal/static/js/main.a05356f8.js",
     "static/js/453.b54c1f52.chunk.js": "/TradingJournal/static/js/453.b54c1f52.chunk.js",
     "index.html": "/TradingJournal/index.html",
     "main.20a3025f.css.map": "/TradingJournal/static/css/main.20a3025f.css.map",
-    "main.77ca3687.js.map": "/TradingJournal/static/js/main.77ca3687.js.map",
+    "main.a05356f8.js.map": "/TradingJournal/static/js/main.a05356f8.js.map",
     "453.b54c1f52.chunk.js.map": "/TradingJournal/static/js/453.b54c1f52.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.20a3025f.css",
-    "static/js/main.77ca3687.js"
+    "static/js/main.a05356f8.js"
   ]
 }
