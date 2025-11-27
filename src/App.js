@@ -1194,15 +1194,15 @@ function App() {
                   </div>
                   <div>
                     <label className="block text-sm text-slate-400 mb-2">Risk Reward (1:R)</label>
-                    <div className="flex items-center gap-2">
-                      <span className="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-300 text-sm">1:</span>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 pointer-events-none">1:</span>
                       <input
                         type="number"
                         min="0.1"
                         step="0.1"
                         value={formData.riskReward}
                         onChange={(e) => setFormData({ ...formData, riskReward: e.target.value })}
-                        className="flex-1 bg-slate-700 rounded-lg px-4 py-2 border border-slate-600 focus:border-purple-400 focus:outline-none"
+                        className="w-full bg-slate-700 rounded-lg pl-10 pr-4 py-2 border border-slate-600 focus:border-purple-400 focus:outline-none"
                         placeholder="Enter reward multiple"
                       />
                     </div>
