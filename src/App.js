@@ -1203,7 +1203,7 @@ function App() {
                         value={formData.riskReward}
                         onChange={(e) => setFormData({ ...formData, riskReward: e.target.value })}
                         className="w-full bg-slate-700 rounded-lg pl-10 pr-4 py-2 border border-slate-600 focus:border-purple-400 focus:outline-none"
-                        placeholder="Enter reward multiple"
+                        placeholder=""
                       />
                     </div>
                   </div>
